@@ -1,0 +1,296 @@
+/* VideoParser
+ * Copyright (C) 2022 Igalia, S.L.
+ *     Author: Víctor Jáquez <vjaquez@igalia.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License.  You
+ * may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+ * implied.  See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+
+#include "pipeline.h"
+#include <gst/app/gstappsrc.h>
+
+struct _GstVideoParser
+{
+  GstObject parent;
+  GstElement *pipeline, *appsrc;
+  gboolean stop, got_stream;
+  GThread *monitor;
+  GError *err;
+};
+
+GST_DEBUG_CATEGORY(gst_video_parser_debug);
+#define GST_CAT_DEFAULT gst_video_parser_debug
+
+G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT,
+    GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug, "videoparser", 0, "Video Parser"))
+
+static void
+on_pad_added(GstElement* parsebin, GstPad* new_pad, gpointer user_data)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
+  GstCaps *caps;
+  GstStructure *st;
+  GstElement *decoder, *sink;
+  GstPad *decoder_pad, *sink_pad;
+  GstPadLinkReturn ret;
+  const char *name;
+
+  GST_PAD_STREAM_LOCK (new_pad);
+  if (!gst_pad_is_active (new_pad)) {
+    GST_PAD_STREAM_UNLOCK (new_pad);
+    return;
+  }
+
+  caps = gst_pad_get_current_caps (new_pad);
+  if (!caps)
+    caps = gst_pad_query_caps (new_pad, NULL);
+
+  GST_DEBUG_OBJECT (self, "new caps: %" GST_PTR_FORMAT, caps);
+
+  st = gst_caps_get_structure (caps, 0);
+  name = gst_structure_get_name (st);
+  if (!self->got_stream && g_strcmp0 (name, "video/x-h264") == 0) {
+    GST_DEBUG_OBJECT (self, "H.264 stream found");
+    decoder = gst_element_factory_make ("vah264dec", NULL);
+    g_assert (decoder);
+    gst_bin_add (GST_BIN (self->pipeline), decoder);
+    gst_element_sync_state_with_parent (decoder);
+    decoder_pad = gst_element_get_static_pad (decoder, "sink");
+    ret = gst_pad_link (new_pad, decoder_pad);
+    gst_object_unref (decoder_pad);
+    if (GST_PAD_LINK_FAILED (ret)) {
+      GST_ELEMENT_ERROR (self->pipeline, CORE, PAD, ("Failed to link parserbin to decoder"), (NULL));
+      goto bail;
+    }
+
+    sink = gst_element_factory_make ("fakesink", NULL);
+    g_assert (sink);
+    gst_bin_add (GST_BIN (self->pipeline), sink);
+    gst_element_sync_state_with_parent (sink);
+    sink_pad = gst_element_get_static_pad (sink, "sink");
+    decoder_pad = gst_element_get_static_pad (decoder, "src");
+    ret = gst_pad_link (decoder_pad, sink_pad);
+    gst_object_unref (decoder_pad);
+    gst_object_unref (sink_pad);
+    if (GST_PAD_LINK_FAILED (ret)) {
+      GST_ELEMENT_ERROR (self->pipeline, CORE, PAD, ("Failed to link decoder to fakesink"), (NULL));
+      goto bail;
+    }
+
+    self->got_stream = TRUE;
+  }
+
+bail:
+  gst_caps_unref (caps);
+  GST_PAD_STREAM_UNLOCK (new_pad);
+}
+
+static gpointer
+bus_thread (gpointer user_data)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
+  GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
+
+  while (!g_atomic_int_get (&self->stop)){
+    GstMessage *msg = gst_bus_timed_pop (bus, GST_SECOND);
+
+    if (!msg)
+      continue;
+
+    GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
+
+    switch (GST_MESSAGE_TYPE (msg)) {
+      case GST_MESSAGE_ERROR:{
+        GstFlowReturn ret;
+
+        GST_OBJECT_LOCK (self);
+        g_clear_error (&self->err);
+        gst_message_parse_error (msg, &self->err, NULL);
+
+        // unblock appsrc with eos
+        ret = gst_app_src_end_of_stream (GST_APP_SRC (self->appsrc));
+        if (ret != GST_FLOW_OK)
+          GST_WARNING_OBJECT (self, "Could not unblock appsrc");
+        GST_OBJECT_UNLOCK (self);
+
+        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (self->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "videoparse.error");
+
+        // no break
+      }
+      case GST_MESSAGE_EOS:
+        g_atomic_int_set (&self->stop, TRUE);
+        break;
+      case GST_MESSAGE_STATE_CHANGED:
+        if (GST_MESSAGE_SRC(msg) == GST_OBJECT_CAST (self->pipeline)) {
+          GstState old, snew;
+          char *name;
+
+          gst_message_parse_state_changed (msg, &old, &snew, NULL);
+
+          name = g_strdup_printf ("videoparse.%s_%s", gst_element_state_get_name (old),
+            gst_element_state_get_name (snew));
+
+          GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (self->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, name);
+
+          g_free (name);
+        }
+        break;
+      default:
+        break;
+    }
+
+    gst_message_unref (msg);
+  }
+
+  gst_object_unref (bus);
+
+  return NULL;
+}
+
+static gboolean
+check_error (GstVideoParser * self)
+{
+  GST_OBJECT_LOCK (self);
+
+  if (!self->err) {
+    GST_OBJECT_UNLOCK (self);
+    return FALSE;
+  }
+
+  gst_printerrln ("Error: %s", self->err->message);
+  g_clear_error (&self->err);
+
+  if (self->monitor) {
+    g_thread_join (self->monitor);
+    self->monitor = NULL;
+  }
+
+  GST_OBJECT_UNLOCK (self);
+
+  return TRUE;
+}
+
+static void
+gst_video_parser_dispose (GObject* object)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstStateChangeReturn ret;
+
+  ret = gst_element_set_state (self->pipeline, GST_STATE_NULL);
+  if (ret == GST_STATE_CHANGE_FAILURE)
+    GST_WARNING_OBJECT (self, "Failed to change to NULL state");
+
+  g_atomic_int_set (&self->stop, TRUE);
+  if (self->monitor) {
+    g_thread_join (self->monitor);
+    self->monitor = NULL;
+  }
+
+  g_clear_error (&self->err);
+  gst_clear_object (&self->pipeline);
+}
+
+static void
+gst_video_parser_constructed (GObject * object)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstElement *parsebin;
+  GstStateChangeReturn ret;
+
+  self->appsrc = gst_element_factory_make ("appsrc", NULL);
+  g_assert (self->appsrc);
+  g_object_set (self->appsrc, "block", TRUE, NULL);
+
+  parsebin = gst_element_factory_make ("parsebin", NULL);
+  g_assert (parsebin);
+
+  g_signal_connect (parsebin, "pad-added", G_CALLBACK (on_pad_added), self);
+
+  self->pipeline = gst_pipeline_new ("videoparse");
+  gst_bin_add_many (GST_BIN (self->pipeline), self->appsrc, parsebin, NULL);
+  if (!gst_element_link (self->appsrc, parsebin))
+    GST_WARNING_OBJECT (self, "Failed to link appsrc with parsebin");
+
+  ret = gst_element_set_state (self->pipeline, GST_STATE_PLAYING);
+  if (ret == GST_STATE_CHANGE_FAILURE)
+    GST_WARNING_OBJECT(self, "Failed to change to PLAYING state");
+
+  self->monitor = g_thread_new ("GstBusPoll", bus_thread, self);
+}
+
+static void
+gst_video_parser_class_init (GstVideoParserClass * klass)
+{
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+
+  gobject_class->constructed = gst_video_parser_constructed;
+  gobject_class->dispose = gst_video_parser_dispose;
+}
+
+static void
+gst_video_parser_init (GstVideoParser * self)
+{
+}
+
+GstVideoParser *
+gst_video_parser_new ()
+{
+  return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, NULL));
+}
+
+static inline void
+gst_video_parser_reset (GstVideoParser * self)
+{
+  GstStateChangeReturn ret;
+
+  // don't reset if thread is running
+  if (self->monitor)
+    return;
+
+  self->got_stream = FALSE;
+  self->stop = FALSE;
+  g_clear_error (&self->err);
+
+  self->monitor = g_thread_new ("GstBusPoll", bus_thread, self);
+
+  // reset pipeline
+  ret = gst_element_set_state (self->pipeline, GST_STATE_READY);
+  if (ret == GST_STATE_CHANGE_FAILURE)
+    GST_WARNING_OBJECT (self, "Change state to ready might failed");
+  ret = gst_element_set_state (self->pipeline, GST_STATE_PLAYING);
+  if (ret == GST_STATE_CHANGE_FAILURE)
+    GST_WARNING_OBJECT (self, "Change state to playing might failed");
+}
+
+GstFlowReturn
+gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
+{
+  GstFlowReturn ret;
+
+  gst_video_parser_reset (self);
+
+  ret = gst_app_src_push_buffer (GST_APP_SRC (self->appsrc), buffer);
+
+  // EOS could mean an error
+  if (ret == GST_FLOW_EOS) {
+    if (check_error (self))
+      return GST_FLOW_ERROR;
+  }
+
+  return ret;
+}
+
+GstFlowReturn
+gst_video_parser_eos (GstVideoParser * self)
+{
+  return gst_app_src_end_of_stream (GST_APP_SRC (self->appsrc));
+}

@@ -16,15 +16,16 @@
  */
 
 #include "videoparser.h"
+#include "pipeline.h"
 
 #include <vk_video/vulkan_video_codecs_common.h>
-#include <gst/gst.h>
 
 class GstVideoDecoderParser : public VulkanVideoDecodeParser
 {
 public:
-    GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
-        : m_refCount(1), m_codec(codec) { }
+    GstVideoDecoderParser()
+        : m_refCount(1)
+        , m_parser(nullptr) { }
 
     VkResult Initialize(VkParserInitDecodeParameters*) final;
     bool Deinitialize() final;
@@ -39,10 +40,11 @@ public:
     int32_t Release() final;
 
 private:
-    ~GstVideoDecoderParser() { }
+    ~GstVideoDecoderParser() {}
 
     int m_refCount;
-    VkVideoCodecOperationFlagBitsKHR m_codec;
+    VkParserVideoDecodeClient *m_client;
+    GstVideoParser *m_parser;
 };
 
 VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
@@ -50,22 +52,48 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
     if (!(params && params->interfaceVersion == VK_MAKE_VIDEO_STD_VERSION(0, 9, 1)))
         return VK_ERROR_INITIALIZATION_FAILED;
 
+    if (!params->pClient)
+        return VK_ERROR_INITIALIZATION_FAILED;
+
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
+
+    m_client = params->pClient;
+
+    m_parser = gst_video_parser_new();
 
     return VK_SUCCESS;
 }
 
 bool GstVideoDecoderParser::Deinitialize()
 {
+    gst_clear_object (&m_parser);
     gst_deinit();
     return true;
 }
 
-bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket *bspacket, int32_t* parsed)
+bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket *bspacket, int32_t *parsed)
 {
     if (parsed)
         *parsed = 0;
+
+    auto buffer = gst_buffer_new_memdup (bspacket->pByteStream, bspacket->nDataLength);
+    if (!buffer)
+        return false;
+
+    auto ret = gst_video_parser_push_buffer (m_parser, buffer);
+    if (ret != GST_FLOW_OK)
+        return false;
+
+    if (bspacket->bEOS) {
+        ret = gst_video_parser_eos (m_parser);
+        if (ret != GST_FLOW_OK)
+            return false;
+    }
+
+    if (parsed)
+        *parsed = bspacket->nDataLength;
+
     return true;
 }
 
@@ -88,13 +116,16 @@ int32_t GstVideoDecoderParser::Release()
 
 bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCodecOperationFlagBitsKHR codec, ParserLogFuncType logfunc = nullptr, int loglevel = 0)
 {
+    GstVideoDecoderParser *internalParser = nullptr;
+
     if (!parser)
         return false;
 
-    if (codec != VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT)
+    internalParser = new GstVideoDecoderParser();
+    if (!internalParser)
         return false;
 
-    *parser = new GstVideoDecoderParser(codec);
+    *parser = internalParser;
     return true;
 }
 

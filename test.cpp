@@ -126,7 +126,7 @@ static bool parse(FILE *stream)
     int32_t parsed;
     VkParserBitstreamPacket pkt;
 
-    ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, nullptr, 0);
+    ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType) printf, 50);
     assert(ret);
     if (!ret)
         return ret;

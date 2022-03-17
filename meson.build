@@ -3,7 +3,8 @@ project('gst-vkvideo-parser', 'cpp',
 )
 
 sources = [
-  'videoparser.cpp'
+  'videoparser.cpp',
+  'pipeline.cpp'
 ]
 
 videoparser = shared_library(
@@ -11,6 +12,7 @@ videoparser = shared_library(
   sources,
   dependencies: [
     dependency('gstreamer-1.0', method: 'pkg-config'),
+    dependency('gstreamer-app-1.0', method: 'pkg-config'),
   ],
 )
 
