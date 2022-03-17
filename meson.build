@@ -18,3 +18,9 @@ executable(
   'testapp', [ 'test.cpp' ],
   link_with: videoparser,
 )
+
+cpp = meson.get_compiler('cpp')
+executable(
+  'nvtestapp', [ 'test.cpp' ],
+  dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: meson.source_root()) ]
+)
