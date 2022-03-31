@@ -87,7 +87,7 @@ bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket *bspac
 
     if (bspacket->bEOS) {
         ret = gst_video_parser_eos (m_parser);
-        if (ret != GST_FLOW_OK)
+        if (ret != GST_FLOW_EOS)
             return false;
     }
 

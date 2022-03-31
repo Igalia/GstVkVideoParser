@@ -22,9 +22,8 @@ struct _GstVideoParser
 {
   GstObject parent;
   GstElement *pipeline, *appsrc;
-  gboolean stop, got_stream;
-  GThread *monitor;
-  GError *err;
+  gboolean need_data, got_stream, got_error, got_eos;
+  GstBus *bus;
 };
 
 GST_DEBUG_CATEGORY(gst_video_parser_debug);
@@ -45,10 +44,11 @@ on_pad_added(GstElement* parsebin, GstPad* new_pad, gpointer user_data)
   const char *name;
 
   GST_PAD_STREAM_LOCK (new_pad);
-  if (!gst_pad_is_active (new_pad)) {
-    GST_PAD_STREAM_UNLOCK (new_pad);
-    return;
-  }
+  if (!gst_pad_is_active (new_pad))
+    goto bail;
+
+  if (self->got_stream)
+    goto bail;
 
   caps = gst_pad_get_current_caps (new_pad);
   if (!caps)
@@ -58,7 +58,9 @@ on_pad_added(GstElement* parsebin, GstPad* new_pad, gpointer user_data)
 
   st = gst_caps_get_structure (caps, 0);
   name = gst_structure_get_name (st);
-  if (!self->got_stream && g_strcmp0 (name, "video/x-h264") == 0) {
+  gst_caps_unref (caps);
+
+  if (g_strcmp0 (name, "video/x-h264") == 0) {
     GST_DEBUG_OBJECT (self, "H.264 stream found");
     decoder = gst_element_factory_make ("vah264dec", NULL);
     g_assert (decoder);
@@ -90,93 +92,61 @@ on_pad_added(GstElement* parsebin, GstPad* new_pad, gpointer user_data)
   }
 
 bail:
-  gst_caps_unref (caps);
   GST_PAD_STREAM_UNLOCK (new_pad);
 }
 
-static gpointer
-bus_thread (gpointer user_data)
+static void
+process_messages (GstVideoParser * self)
 {
-  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
-  GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
+  GstMessage *msg;
 
-  while (!g_atomic_int_get (&self->stop)){
-    GstMessage *msg = gst_bus_timed_pop (bus, GST_SECOND);
-
+  while (TRUE) {
+    msg = gst_bus_pop (self->bus);
     if (!msg)
-      continue;
+      break;
 
     GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
 
     switch (GST_MESSAGE_TYPE (msg)) {
       case GST_MESSAGE_ERROR:{
-        GstFlowReturn ret;
+        GError *err = NULL;
+        char *debug = NULL;
 
-        GST_OBJECT_LOCK (self);
-        g_clear_error (&self->err);
-        gst_message_parse_error (msg, &self->err, NULL);
-
-        // unblock appsrc with eos
-        ret = gst_app_src_end_of_stream (GST_APP_SRC (self->appsrc));
-        if (ret != GST_FLOW_OK)
-          GST_WARNING_OBJECT (self, "Could not unblock appsrc");
-        GST_OBJECT_UNLOCK (self);
+        gst_message_parse_error (msg, &err, &debug);
+        GST_ERROR_OBJECT (self, "Error: %s - %s", err->message, debug);
+        g_clear_error (&err);
+        g_free (debug);
 
         GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (self->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "videoparse.error");
 
-        // no break
-      }
-      case GST_MESSAGE_EOS:
-        g_atomic_int_set (&self->stop, TRUE);
+        self->got_error = TRUE;
         break;
+      }
+
+    case GST_MESSAGE_EOS:
+        self->got_eos = TRUE;
+        break;
+
       case GST_MESSAGE_STATE_CHANGED:
         if (GST_MESSAGE_SRC(msg) == GST_OBJECT_CAST (self->pipeline)) {
           GstState old, snew;
           char *name;
 
           gst_message_parse_state_changed (msg, &old, &snew, NULL);
-
           name = g_strdup_printf ("videoparse.%s_%s", gst_element_state_get_name (old),
             gst_element_state_get_name (snew));
 
           GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (self->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, name);
 
           g_free (name);
+
+          break;
         }
-        break;
+
       default:
         break;
     }
-
-    gst_message_unref (msg);
   }
-
-  gst_object_unref (bus);
-
-  return NULL;
-}
-
-static gboolean
-check_error (GstVideoParser * self)
-{
-  GST_OBJECT_LOCK (self);
-
-  if (!self->err) {
-    GST_OBJECT_UNLOCK (self);
-    return FALSE;
-  }
-
-  gst_printerrln ("Error: %s", self->err->message);
-  g_clear_error (&self->err);
-
-  if (self->monitor) {
-    g_thread_join (self->monitor);
-    self->monitor = NULL;
-  }
-
-  GST_OBJECT_UNLOCK (self);
-
-  return TRUE;
 }
 
 static void
@@ -189,14 +159,32 @@ gst_video_parser_dispose (GObject* object)
   if (ret == GST_STATE_CHANGE_FAILURE)
     GST_WARNING_OBJECT (self, "Failed to change to NULL state");
 
-  g_atomic_int_set (&self->stop, TRUE);
-  if (self->monitor) {
-    g_thread_join (self->monitor);
-    self->monitor = NULL;
-  }
-
-  g_clear_error (&self->err);
+  gst_clear_object (&self->bus);
   gst_clear_object (&self->pipeline);
+}
+
+static void
+need_data (GstAppSrc * src, guint length, gpointer user_data)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
+
+  GST_DEBUG_OBJECT (self, "Need data");
+
+  self->need_data = TRUE;
+}
+
+static void
+enough_data (GstAppSrc * src, gpointer user_data)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
+
+  GST_DEBUG_OBJECT (self, "Enough data");
+
+  self->need_data = FALSE;
+
+  while (!self->need_data && !self->got_error && !self->got_eos) {
+    process_messages (self);
+  }
 }
 
 static void
@@ -205,10 +193,13 @@ gst_video_parser_constructed (GObject * object)
   GstVideoParser *self = GST_VIDEO_PARSER (object);
   GstElement *parsebin;
   GstStateChangeReturn ret;
+  GstAppSrcCallbacks cb = {
+    need_data, enough_data, NULL,
+  };
 
   self->appsrc = gst_element_factory_make ("appsrc", NULL);
   g_assert (self->appsrc);
-  g_object_set (self->appsrc, "block", TRUE, NULL);
+  gst_app_src_set_callbacks (GST_APP_SRC (self->appsrc), &cb, self, NULL);
 
   parsebin = gst_element_factory_make ("parsebin", NULL);
   g_assert (parsebin);
@@ -224,7 +215,7 @@ gst_video_parser_constructed (GObject * object)
   if (ret == GST_STATE_CHANGE_FAILURE)
     GST_WARNING_OBJECT(self, "Failed to change to PLAYING state");
 
-  self->monitor = g_thread_new ("GstBusPoll", bus_thread, self);
+  self->bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
 }
 
 static void
@@ -252,20 +243,12 @@ gst_video_parser_reset (GstVideoParser * self)
 {
   GstStateChangeReturn ret;
 
-  // don't reset if thread is running
-  if (self->monitor)
-    return;
+  self->got_eos = self->got_error = self->need_data = self->got_stream = FALSE;
 
-  self->got_stream = FALSE;
-  self->stop = FALSE;
-  g_clear_error (&self->err);
-
-  self->monitor = g_thread_new ("GstBusPoll", bus_thread, self);
-
-  // reset pipeline
   ret = gst_element_set_state (self->pipeline, GST_STATE_READY);
   if (ret == GST_STATE_CHANGE_FAILURE)
     GST_WARNING_OBJECT (self, "Change state to ready might failed");
+
   ret = gst_element_set_state (self->pipeline, GST_STATE_PLAYING);
   if (ret == GST_STATE_CHANGE_FAILURE)
     GST_WARNING_OBJECT (self, "Change state to playing might failed");
@@ -276,15 +259,21 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
 {
   GstFlowReturn ret;
 
-  gst_video_parser_reset (self);
+  if (self->got_error)
+    return GST_FLOW_ERROR;
+  if (self->got_eos)
+    return GST_FLOW_EOS;
+
+  GST_DEBUG_OBJECT (self, "Pushing buffer: %" GST_PTR_FORMAT, buffer);
 
   ret = gst_app_src_push_buffer (GST_APP_SRC (self->appsrc), buffer);
+  if (ret != GST_FLOW_OK && ret != GST_FLOW_EOS)
+    GST_WARNING_OBJECT (self, "Couldn't push buffer: %s", gst_flow_get_name (ret));
 
-  // EOS could mean an error
-  if (ret == GST_FLOW_EOS) {
-    if (check_error (self))
-      return GST_FLOW_ERROR;
-  }
+  if (self->got_error)
+    return GST_FLOW_ERROR;
+  if (self->got_eos)
+    return GST_FLOW_EOS;
 
   return ret;
 }
@@ -292,5 +281,34 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
 GstFlowReturn
 gst_video_parser_eos (GstVideoParser * self)
 {
-  return gst_app_src_end_of_stream (GST_APP_SRC (self->appsrc));
+  GstFlowReturn ret;
+
+  GST_DEBUG_OBJECT (self, "Pushing EOS");
+
+  if (self->got_error)
+    return GST_FLOW_ERROR;
+  if (self->got_eos)
+    return GST_FLOW_EOS;
+
+  ret = gst_app_src_end_of_stream (GST_APP_SRC (self->appsrc));
+  if (ret != GST_FLOW_OK) {
+    GST_WARNING_OBJECT (self, "Couldn't push EOS: %s", gst_flow_get_name (ret));
+    return ret;
+  }
+
+  while (TRUE) {
+    process_messages (self);
+    if (self->got_error) {
+      ret = GST_FLOW_ERROR;
+      break;
+    }
+    if (self->got_eos) {
+      ret = GST_FLOW_EOS;
+      break;
+    }
+  }
+
+  gst_video_parser_reset (self);
+
+  return ret;
 }
