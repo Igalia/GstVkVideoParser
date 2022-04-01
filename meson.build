@@ -8,6 +8,7 @@ cpp_sources = [
 
 c_sources = [
   'pipeline.c',
+  'h264dec.c',
   'codecs/gsth264decoder.c',
   'codecs/gsth264picture.c',
 ]
@@ -22,6 +23,7 @@ gstvideoparser = static_library(
     gst_dep,
     dependency('gstreamer-app-1.0', method: 'pkg-config'),
     dependency('gstreamer-codecparsers-1.0', method: 'pkg-config'),
+    dependency('gstreamer-video-1.0', method: 'pkg-config'),
   ],
 )
 
