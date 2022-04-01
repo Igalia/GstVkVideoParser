@@ -1,19 +1,35 @@
-project('gst-vkvideo-parser', 'cpp',
+project('gst-vkvideo-parser', 'c', 'cpp',
   default_options : [ 'warning_level=1', 'buildtype=debug' ]
 )
 
-sources = [
+cpp_sources = [
   'videoparser.cpp',
-  'pipeline.cpp'
 ]
+
+c_sources = [
+  'pipeline.c',
+  'codecs/gsth264decoder.c',
+  'codecs/gsth264picture.c',
+]
+
+gst_dep = dependency('gstreamer-1.0', method: 'pkg-config')
+
+gstvideoparser = static_library(
+  'gstvideoparser', c_sources,
+  include_directories: 'codecs',
+  c_args: '-DGST_USE_UNSTABLE_API',
+  dependencies: [
+    gst_dep,
+    dependency('gstreamer-app-1.0', method: 'pkg-config'),
+    dependency('gstreamer-codecparsers-1.0', method: 'pkg-config'),
+  ],
+)
 
 videoparser = shared_library(
   'gst-vkvideo-parser',
-  sources,
-  dependencies: [
-    dependency('gstreamer-1.0', method: 'pkg-config'),
-    dependency('gstreamer-app-1.0', method: 'pkg-config'),
-  ],
+  cpp_sources,
+  link_with: gstvideoparser,
+  dependencies: gst_dep,
 )
 
 executable(
