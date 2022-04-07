@@ -47,7 +47,7 @@ static guint signals[LAST_SIGNAL] = { 0 };
 static void
 new_sequence (GstVideoDecoder * decoder, GstH264SPS * sps, gpointer user_data)
 {
-  g_signal_emit (GST_VIDEO_PARSER (user_data), signals[NEW_SEQUENCE], 0, sps);
+  g_signal_emit (GST_VIDEO_PARSER (user_data), signals[BEGIN_SEQUENCE], 0, sps);
 }
 
 static void

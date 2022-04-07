@@ -14,15 +14,15 @@ c_sources = [
 ]
 
 gst_dep = dependency('gstreamer-1.0', method: 'pkg-config')
+gst_codecparsers_dep = dependency('gstreamer-codecparsers-1.0', method: 'pkg-config')
 
 gstvideoparser = static_library(
   'gstvideoparser', c_sources,
   include_directories: 'codecs',
   c_args: '-DGST_USE_UNSTABLE_API',
   dependencies: [
-    gst_dep,
+    gst_dep, gst_codecparsers_dep,
     dependency('gstreamer-app-1.0', method: 'pkg-config'),
-    dependency('gstreamer-codecparsers-1.0', method: 'pkg-config'),
     dependency('gstreamer-video-1.0', method: 'pkg-config'),
   ],
 )
@@ -30,8 +30,9 @@ gstvideoparser = static_library(
 videoparser = shared_library(
   'gst-vkvideo-parser',
   cpp_sources,
+  cpp_args: '-DGST_USE_UNSTABLE_API',
   link_with: gstvideoparser,
-  dependencies: gst_dep,
+  dependencies: [ gst_dep, gst_codecparsers_dep, ],
 )
 
 executable(

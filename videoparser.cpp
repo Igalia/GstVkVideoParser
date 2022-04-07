@@ -18,13 +18,16 @@
 #include "videoparser.h"
 #include "pipeline.h"
 
+#include <gst/codecparsers/gsth264parser.h>
 #include <vk_video/vulkan_video_codecs_common.h>
 
 class GstVideoDecoderParser : public VulkanVideoDecodeParser
 {
 public:
-    GstVideoDecoderParser()
+    GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
         : m_refCount(1)
+        , m_codec(codec)
+        , m_client(nullptr)
         , m_parser(nullptr) { }
 
     VkResult Initialize(VkParserInitDecodeParameters*) final;
@@ -43,6 +46,7 @@ private:
     ~GstVideoDecoderParser() {}
 
     int m_refCount;
+    VkVideoCodecOperationFlagBitsKHR m_codec;
     VkParserVideoDecodeClient *m_client;
     GstVideoParser *m_parser;
 };
@@ -61,6 +65,20 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
     m_client = params->pClient;
 
     m_parser = gst_video_parser_new();
+
+    g_signal_connect(m_parser, "begin-sequence", G_CALLBACK(+[](GstVideoParser* parser, const gpointer seq, GstVideoDecoderParser* self) {
+        auto* sps = static_cast<GstH264SPS*>(seq);
+        VkParserSequenceInfo info;
+
+        info.eCodec = self->m_codec;
+        info.isSVC = sps->extension_type == GST_H264_NAL_EXTENSION_SVC;
+        info.bProgSeq = sps->frame_mbs_only_flag;
+        info.uBitDepthLumaMinus8 = sps->bit_depth_luma_minus8;
+        info.uBitDepthChromaMinus8 = sps->bit_depth_chroma_minus8;
+        info.nChromaFormat = sps->chroma_format_idc;
+
+        self->m_client->BeginSequence(&info);
+    }), this);
 
     return VK_SUCCESS;
 }
@@ -116,12 +134,10 @@ int32_t GstVideoDecoderParser::Release()
 
 bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCodecOperationFlagBitsKHR codec, ParserLogFuncType logfunc = nullptr, int loglevel = 0)
 {
-    GstVideoDecoderParser *internalParser = nullptr;
-
     if (!parser)
         return false;
 
-    internalParser = new GstVideoDecoderParser();
+    auto* internalParser = new GstVideoDecoderParser(codec);
     if (!internalParser)
         return false;
 
