@@ -38,7 +38,7 @@ struct _GstH264Dec
 
 G_DEFINE_FINAL_TYPE (GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
 
-static gpointer *parent_class = NULL;
+static gpointer parent_class = NULL;
 
 static GstFlowReturn
 gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
