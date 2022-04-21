@@ -16,8 +16,6 @@
  */
 
 #include "h264dec.h"
-#include "gst/video/gstvideodecoder.h"
-#include "gstpad.h"
 
 #define GST_H264_DEC(obj)           ((GstH264Dec *) obj)
 #define GST_H264_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), G_TYPE_FROM_INSTANCE (obj), GstH264DecClass))
@@ -47,7 +45,6 @@ typedef struct _GstH264Dec GstH264Dec;
 struct _GstH264Dec
 {
   GstH264Decoder parent;
-  gboolean need_negotiation;
 };
 
 G_DEFINE_FINAL_TYPE (GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
@@ -59,10 +56,15 @@ gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
     gint max_dpb_size)
 {
   GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVideoDecoder *dec = GST_VIDEO_DECODER (decoder);
+  GstVideoCodecState *state;
 
-  self->need_negotiation = TRUE;
+  g_signal_emit (self, signals[NEW_SEQUENCE], 0, sps);
 
-  g_signal_emit (GST_H264_DEC (decoder), signals[NEW_SEQUENCE], 0, sps);
+  state = gst_video_decoder_set_output_state (dec, GST_VIDEO_FORMAT_NV12, 16, 16, decoder->input_state);
+  gst_video_codec_state_unref (state);
+
+  gst_video_decoder_negotiate (dec);
 
   return GST_FLOW_OK;
 }
@@ -79,18 +81,12 @@ gst_h264_dec_new_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
     GstH264Picture * picture)
 {
   GstH264Dec *self = GST_H264_DEC (decoder);
-  GstFlowReturn ret;
 
-  if (self->need_negotiation) {
-    if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (decoder)))
-      return GST_FLOW_NOT_NEGOTIATED;
-  }
+  g_signal_emit (self, signals[NEW_PICTURE], 0);
 
-  g_signal_emit (GST_H264_DEC (decoder), signals[NEW_PICTURE], 0);
+  frame->output_buffer = gst_buffer_new ();
 
-  ret = gst_video_decoder_allocate_output_frame (GST_VIDEO_DECODER (decoder), frame);
-
-  return ret;
+  return GST_FLOW_OK;
 }
 
 static GstFlowReturn
@@ -124,40 +120,16 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
   return GST_FLOW_OK;
 }
 
-static gboolean
-gst_h264_dec_negotiate (GstVideoDecoder * decoder)
-{
-  GstH264Dec *self = GST_H264_DEC (decoder);
-  GstH264Decoder *h264dec = GST_H264_DECODER (decoder);
-  GstVideoCodecState *state;
-
-  if (!self->need_negotiation)
-    return TRUE;
-  self->need_negotiation = FALSE;
-
-  GST_DEBUG_OBJECT (self, "negotiate");
-
-  state = gst_video_decoder_set_output_state (decoder, GST_VIDEO_FORMAT_NV12,
-      16, 16, h264dec->input_state);
-
-  gst_video_codec_state_unref (state);
-
-  return GST_VIDEO_DECODER_CLASS (parent_class)->negotiate (decoder);
-}
-
 static void
 gst_h264_dec_class_init (GstH264DecClass * klass)
 {
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
   GstH264DecoderClass *h264decoder_class = GST_H264_DECODER_CLASS (klass);
-  GstVideoDecoderClass *decoder_class = GST_VIDEO_DECODER_CLASS (klass);
 
   parent_class = g_type_class_peek_parent (klass);
 
   gst_element_class_add_pad_template (element_class, gst_static_pad_template_get (&sink_factory));
   gst_element_class_add_pad_template (element_class, gst_static_pad_template_get (&src_factory));
-
-  decoder_class->negotiate = gst_h264_dec_negotiate;
 
   h264decoder_class->new_sequence = gst_h264_dec_new_sequence;
   h264decoder_class->decode_slice = gst_h264_dec_decode_slice;
