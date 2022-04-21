@@ -16,7 +16,9 @@
  */
 
 #include "pipeline.h"
+
 #include <gst/app/gstappsrc.h>
+
 #include "h264dec.h"
 
 struct _GstVideoParser
@@ -24,6 +26,11 @@ struct _GstVideoParser
   GstObject parent;
   GstElement *pipeline, *appsrc;
   gboolean need_data, got_stream, got_error, got_eos;
+  gpointer user_data;
+};
+
+enum {
+  PROP_USER_DATA = 1,
 };
 
 GST_DEBUG_CATEGORY(gst_video_parser_debug);
@@ -62,7 +69,7 @@ on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
 
   if (g_strcmp0 (name, "video/x-h264") == 0) {
     GST_DEBUG_OBJECT (self, "H.264 stream found");
-    decoder = g_object_new (GST_TYPE_H264_DEC, NULL);
+    decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data, NULL);
     g_assert (decoder);
 
     gst_bin_add (GST_BIN (self->pipeline), decoder);
@@ -218,12 +225,33 @@ gst_video_parser_constructed (GObject * object)
 }
 
 static void
+gst_video_parser_set_property (GObject * object, guint property_id,
+     const GValue * value, GParamSpec *pspec)
+{
+  GstVideoParser *self = GST_VIDEO_PARSER (object);
+
+  switch (property_id) {
+    case PROP_USER_DATA:
+      self->user_data = g_value_get_pointer (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+  }
+}
+
+static void
 gst_video_parser_class_init (GstVideoParserClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 
   gobject_class->constructed = gst_video_parser_constructed;
   gobject_class->dispose = gst_video_parser_dispose;
+  gobject_class->set_property = gst_video_parser_set_property;
+
+  g_object_class_install_property (gobject_class, PROP_USER_DATA,
+      g_param_spec_pointer ("user-data", "user-data", "user-data",
+          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 }
 
 static void
@@ -232,9 +260,10 @@ gst_video_parser_init (GstVideoParser * self)
 }
 
 GstVideoParser *
-gst_video_parser_new ()
+gst_video_parser_new (gpointer user_data)
 {
-  return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, NULL));
+  return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, "user-data",
+      user_data, NULL));
 }
 
 static inline void

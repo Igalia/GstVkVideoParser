@@ -25,7 +25,7 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (GstVideoParser, gst_video_parser, GST, VIDEO_PARSER, GstObject)
 
-GstVideoParser *         gst_video_parser_new         (void);
+GstVideoParser *         gst_video_parser_new         (gpointer user_data);
 
 GstFlowReturn            gst_video_parser_push_buffer (GstVideoParser *self,
 						       GstBuffer *buffer);

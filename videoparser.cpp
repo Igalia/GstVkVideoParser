@@ -27,7 +27,6 @@ public:
     GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
         : m_refCount(1)
         , m_codec(codec)
-        , m_client(nullptr)
         , m_parser(nullptr) { }
 
     VkResult Initialize(VkParserInitDecodeParameters*) final;
@@ -47,7 +46,6 @@ private:
 
     int m_refCount;
     VkVideoCodecOperationFlagBitsKHR m_codec;
-    VkParserVideoDecodeClient *m_client;
     GstVideoParser *m_parser;
 };
 
@@ -62,9 +60,7 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
 
-    m_client = params->pClient;
-
-    m_parser = gst_video_parser_new();
+    m_parser = gst_video_parser_new(params->pClient);
 
     return VK_SUCCESS;
 }
