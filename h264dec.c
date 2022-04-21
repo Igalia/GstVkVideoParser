@@ -30,17 +30,6 @@ static GstStaticPadTemplate sink_factory =
 static GstStaticPadTemplate src_factory =
     GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC, GST_PAD_ALWAYS, GST_STATIC_CAPS ("video/x-raw, format=(string)NV12"));
 
-enum
-{
-  NEW_SEQUENCE,
-  NEW_PICTURE,
-  END_PICTURE,
-  OUT_PICTURE,
-  LAST_SIGNAL,
-};
-
-static guint signals[LAST_SIGNAL] = { 0 };
-
 typedef struct _GstH264Dec GstH264Dec;
 struct _GstH264Dec
 {
@@ -55,11 +44,8 @@ static GstFlowReturn
 gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
     gint max_dpb_size)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
   GstVideoDecoder *dec = GST_VIDEO_DECODER (decoder);
   GstVideoCodecState *state;
-
-  g_signal_emit (self, signals[NEW_SEQUENCE], 0, sps);
 
   state = gst_video_decoder_set_output_state (dec, GST_VIDEO_FORMAT_NV12, 16, 16, decoder->input_state);
   gst_video_codec_state_unref (state);
@@ -80,10 +66,6 @@ static GstFlowReturn
 gst_h264_dec_new_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
     GstH264Picture * picture)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
-
-  g_signal_emit (self, signals[NEW_PICTURE], 0);
-
   frame->output_buffer = gst_buffer_new ();
 
   return GST_FLOW_OK;
@@ -100,16 +82,12 @@ static GstFlowReturn
 gst_h264_dec_output_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
     GstH264Picture * picture)
 {
-  g_signal_emit (GST_H264_DEC (decoder), signals[OUT_PICTURE], 0);
-
   return gst_video_decoder_finish_frame (GST_VIDEO_DECODER (decoder), frame);
 }
 
 static GstFlowReturn
 gst_h264_dec_end_picture (GstH264Decoder * decoder, GstH264Picture * picture)
 {
-  g_signal_emit (GST_H264_DEC (decoder), signals[END_PICTURE], 0);
-
   return GST_FLOW_OK;
 }
 
@@ -138,15 +116,6 @@ gst_h264_dec_class_init (GstH264DecClass * klass)
   h264decoder_class->start_picture = gst_h264_dec_start_picture;
   h264decoder_class->end_picture = gst_h264_dec_end_picture;
   h264decoder_class->new_field_picture = gst_h264_dec_new_field_picture;
-
-  signals[NEW_SEQUENCE] = g_signal_new ("new-sequence", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_POINTER);
-  signals[NEW_PICTURE] = g_signal_new ("new-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
-  signals[END_PICTURE] = g_signal_new ("end-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
-  signals[OUT_PICTURE] = g_signal_new ("out-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void

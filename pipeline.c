@@ -32,23 +32,6 @@ GST_DEBUG_CATEGORY(gst_video_parser_debug);
 G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT,
     GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug, "videoparser", 0, "Video Parser"))
 
-enum
-{
-  BEGIN_SEQUENCE,
-  ALLOC_PICTURE,
-  DECODE_PICTURE,
-  DISPLAY_PICTURE,
-  LAST_SIGNAL,
-};
-
-static guint signals[LAST_SIGNAL] = { 0 };
-
-static void
-new_sequence (GstVideoDecoder * decoder, GstH264SPS * sps, gpointer user_data)
-{
-  g_signal_emit (GST_VIDEO_PARSER (user_data), signals[BEGIN_SEQUENCE], 0, sps);
-}
-
 static void
 on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
 {
@@ -81,8 +64,6 @@ on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
     GST_DEBUG_OBJECT (self, "H.264 stream found");
     decoder = g_object_new (GST_TYPE_H264_DEC, NULL);
     g_assert (decoder);
-
-    g_signal_connect (decoder, "new-sequence", G_CALLBACK (new_sequence), self);
 
     gst_bin_add (GST_BIN (self->pipeline), decoder);
     gst_element_sync_state_with_parent (decoder);
@@ -243,15 +224,6 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
 
   gobject_class->constructed = gst_video_parser_constructed;
   gobject_class->dispose = gst_video_parser_dispose;
-
-  signals[BEGIN_SEQUENCE] = g_signal_new ("begin-sequence", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_POINTER);
-  signals[ALLOC_PICTURE] = g_signal_new ("alloc-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
-  signals[DECODE_PICTURE] = g_signal_new ("decode-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
-  signals[DISPLAY_PICTURE] = g_signal_new ("display-picture", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void

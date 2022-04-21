@@ -66,20 +66,6 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
 
     m_parser = gst_video_parser_new();
 
-    g_signal_connect(m_parser, "begin-sequence", G_CALLBACK(+[](GstVideoParser* parser, const gpointer seq, GstVideoDecoderParser* self) {
-        auto* sps = static_cast<GstH264SPS*>(seq);
-        VkParserSequenceInfo info;
-
-        info.eCodec = self->m_codec;
-        info.isSVC = sps->extension_type == GST_H264_NAL_EXTENSION_SVC;
-        info.bProgSeq = sps->frame_mbs_only_flag;
-        info.uBitDepthLumaMinus8 = sps->bit_depth_luma_minus8;
-        info.uBitDepthChromaMinus8 = sps->bit_depth_chroma_minus8;
-        info.nChromaFormat = sps->chroma_format_idc;
-
-        self->m_client->BeginSequence(&info);
-    }), this);
-
     return VK_SUCCESS;
 }
 
