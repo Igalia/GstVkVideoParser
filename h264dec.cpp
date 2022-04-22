@@ -37,6 +37,16 @@ struct _GstH264Dec
 {
   GstH264Decoder parent;
   VkParserVideoDecodeClient *client;
+
+  gint max_dpb_size;
+  guint chroma_format_idc;
+};
+
+struct VkPic
+{
+  VkPicIf *pic;
+  VkParserPictureData data;
+  gint n_slices;
 };
 
 enum {
@@ -47,11 +57,29 @@ G_DEFINE_FINAL_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
 
 static gpointer parent_class = NULL;
 
+static VkPic *
+vk_pic_new (VkPicIf *pic)
+{
+  VkPic *vkpic = g_new0(struct VkPic, 1);
+
+  vkpic->pic = pic;
+  return vkpic;
+}
+
+static void
+vk_pic_free (gpointer data)
+{
+  VkPic *vkpic = static_cast<VkPic *>(data);
+
+  vkpic->pic->Release();
+  g_free (vkpic);
+}
+
 static GstFlowReturn
 gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint max_dpb_size)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
-  GstVideoDecoder *dec = GST_VIDEO_DECODER (decoder);
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  GstVideoDecoder *dec = GST_VIDEO_DECODER(decoder);
   GstVideoCodecState *state;
   VkParserSequenceInfo seqInfo = { };
 
@@ -91,7 +119,8 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
   seqInfo.cbSideData = 0;
 
   if (self->client)
-    self->client->BeginSequence (&seqInfo);
+    self->max_dpb_size = self->client->BeginSequence (&seqInfo);
+  self->chroma_format_idc = sps->chroma_format_idc;
 
   state = gst_video_decoder_set_output_state (dec, GST_VIDEO_FORMAT_NV12, seqInfo.nDisplayWidth, seqInfo.nDisplayHeight, decoder->input_state);
   gst_video_codec_state_unref (state);
@@ -104,12 +133,28 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
 static GstFlowReturn
 gst_h264_dec_decode_slice(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GArray * ref_pic_list0, GArray * ref_pic_list1)
 {
+  VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+
+  vkpic->n_slices++;
+
   return GST_FLOW_OK;
 }
 
 static GstFlowReturn
 gst_h264_dec_new_picture(GstH264Decoder * decoder, GstVideoCodecFrame * frame, GstH264Picture * picture)
 {
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  VkPicIf *pic = nullptr;
+  VkPic *vkpic;
+
+  if (self->client) {
+    if (!self->client->AllocPictureBuffer(&pic))
+      return GST_FLOW_ERROR;
+  }
+
+  vkpic = vk_pic_new(pic);
+  gst_h264_picture_set_user_data(picture, vkpic, vk_pic_free);
+
   frame->output_buffer = gst_buffer_new();
 
   return GST_FLOW_OK;
@@ -118,24 +163,88 @@ gst_h264_dec_new_picture(GstH264Decoder * decoder, GstVideoCodecFrame * frame, G
 static GstFlowReturn
 gst_h264_dec_new_field_picture(GstH264Decoder * decoder, GstH264Picture * first_field, GstH264Picture * second_field)
 {
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  VkPicIf *pic = nullptr;
+  VkPic *vkpic;
+
+  if (self->client) {
+    if (!self->client->AllocPictureBuffer(&pic))
+      return GST_FLOW_ERROR;
+  }
+
+  vkpic = vk_pic_new(pic);
+  gst_h264_picture_set_user_data(second_field, vkpic, vk_pic_free);
+
   return GST_FLOW_OK;
 }
 
 static GstFlowReturn
 gst_h264_dec_output_picture(GstH264Decoder * decoder, GstVideoCodecFrame * frame, GstH264Picture * picture)
 {
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));;
+
+  if (self->client) {
+    if (!self->client->DisplayPicture(vkpic->pic, picture->system_frame_number)) {
+      gst_h264_picture_unref (picture);
+      return GST_FLOW_ERROR;
+    }
+  }
+
+  gst_h264_picture_unref (picture);
   return gst_video_decoder_finish_frame(GST_VIDEO_DECODER (decoder), frame);
 }
 
 static GstFlowReturn
 gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 {
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));;
+
+  vkpic->data.nNumSlices = vkpic->n_slices; // Number of slices(tiles in case of AV1) in this picture
+  vkpic->n_slices = 0;
+
+  if (self->client) {
+    if (!self->client->DecodePicture(&vkpic->data))
+      return GST_FLOW_ERROR;
+  }
+
   return GST_FLOW_OK;
 }
 
 static GstFlowReturn
 gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GstH264Dpb * dpb)
 {
+  GstH264Dec *self = GST_H264_DEC(decoder);
+  VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+
+  //vkpic->data.PicWidthInMbs; // Coded Frame Size
+  //vkpic->data.FrameHeightInMbs; // Coded Frame Height
+  vkpic->data.pCurrPic = vkpic->pic;
+  vkpic->data.field_pic_flag = picture->field_pic_flag; // 0=frame picture, 1=field picture
+  vkpic->data.bottom_field_flag = picture->field == GST_H264_PICTURE_FIELD_BOTTOM_FIELD; // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
+  vkpic->data.second_field = picture->second_field; // Second field of a complementary field pair
+  //vkpic->data.progressive_frame; // Frame is progressive
+  //vkpic->data.top_field_first; // Frame pictures only
+  //vkpic->data.repeat_first_field; // For 3:2 pulldown (number of additional fields,
+        // 2=frame doubling, 4=frame tripling)
+  vkpic->data.ref_pic_flag = picture->ref_pic; // Frame is a reference frame
+  //vkpic->data.intra_pic_flag; // Frame is entirely intra coded (no temporal
+        // dependencies)
+  vkpic->data.chroma_format = self->chroma_format_idc; // Chroma Format (should match sequence info)
+  vkpic->data.picture_order_count = picture->pic_order_cnt; // picture order count (if known)
+
+  vkpic->data.pbSideData = nullptr; // Encryption Info
+  vkpic->data.nSideDataLen = 0; // Encryption Info length
+
+  // Bitstream data
+  //vkpic->data.nBitstreamDataLen; // Number of bytes in bitstream data buffer
+  //vkpic->data.pBitstreamData; // Ptr to bitstream data for this picture (slice-layer)
+  //vkpic->data.pSliceDataOffsets; // nNumSlices entries, contains offset of each slice
+        // within the bitstream data buffer
+
+  //vkpic->data.CodecSpecific.h264.
+
   return GST_FLOW_OK;
 }
 
