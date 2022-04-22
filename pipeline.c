@@ -27,10 +27,12 @@ struct _GstVideoParser
   GstElement *pipeline, *appsrc;
   gboolean need_data, got_stream, got_error, got_eos;
   gpointer user_data;
+  VkVideoCodecOperationFlagBitsKHR codec;
 };
 
 enum {
   PROP_USER_DATA = 1,
+  PROP_CODEC,
 };
 
 GST_DEBUG_CATEGORY(gst_video_parser_debug);
@@ -67,7 +69,8 @@ on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
   name = gst_structure_get_name (st);
   gst_caps_unref (caps);
 
-  if (g_strcmp0 (name, "video/x-h264") == 0) {
+  if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT
+      && g_strcmp0 (name, "video/x-h264") == 0) {
     GST_DEBUG_OBJECT (self, "H.264 stream found");
     decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data, NULL);
     g_assert (decoder);
@@ -234,6 +237,9 @@ gst_video_parser_set_property (GObject * object, guint property_id,
     case PROP_USER_DATA:
       self->user_data = g_value_get_pointer (value);
       break;
+    case PROP_CODEC:
+      self->codec = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -252,6 +258,13 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
   g_object_class_install_property (gobject_class, PROP_USER_DATA,
       g_param_spec_pointer ("user-data", "user-data", "user-data",
           G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+
+  g_object_class_install_property (gobject_class, PROP_CODEC,
+      g_param_spec_uint ("codec", "codec", "codec",
+          VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
+          VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT,
+          VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
+          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 }
 
 static void
@@ -260,10 +273,11 @@ gst_video_parser_init (GstVideoParser * self)
 }
 
 GstVideoParser *
-gst_video_parser_new (gpointer user_data)
+gst_video_parser_new (gpointer user_data,
+    VkVideoCodecOperationFlagBitsKHR codec)
 {
   return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, "user-data",
-      user_data, NULL));
+      user_data, "codec", codec, NULL));
 }
 
 static inline void

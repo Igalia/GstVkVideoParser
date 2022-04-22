@@ -18,6 +18,8 @@
 #pragma once
 
 #include <gst/gst.h>
+#define VK_ENABLE_BETA_EXTENSIONS 1
+#include <vulkan/vulkan.h>
 
 G_BEGIN_DECLS
 
@@ -25,7 +27,8 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (GstVideoParser, gst_video_parser, GST, VIDEO_PARSER, GstObject)
 
-GstVideoParser *         gst_video_parser_new         (gpointer user_data);
+GstVideoParser *         gst_video_parser_new         (gpointer user_data,
+						       VkVideoCodecOperationFlagBitsKHR codec);
 
 GstFlowReturn            gst_video_parser_push_buffer (GstVideoParser *self,
 						       GstBuffer *buffer);
