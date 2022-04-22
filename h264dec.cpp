@@ -39,7 +39,6 @@ struct _GstH264Dec
   VkParserVideoDecodeClient *client;
 
   gint max_dpb_size;
-  guint chroma_format_idc;
 };
 
 struct VkPic
@@ -120,7 +119,6 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
 
   if (self->client)
     self->max_dpb_size = self->client->BeginSequence (&seqInfo);
-  self->chroma_format_idc = sps->chroma_format_idc;
 
   state = gst_video_decoder_set_output_state (dec, GST_VIDEO_FORMAT_NV12, seqInfo.nDisplayWidth, seqInfo.nDisplayHeight, decoder->input_state);
   gst_video_codec_state_unref (state);
@@ -221,17 +219,17 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   //vkpic->data.PicWidthInMbs; // Coded Frame Size
   //vkpic->data.FrameHeightInMbs; // Coded Frame Height
   vkpic->data.pCurrPic = vkpic->pic;
-  vkpic->data.field_pic_flag = picture->field_pic_flag; // 0=frame picture, 1=field picture
-  vkpic->data.bottom_field_flag = picture->field == GST_H264_PICTURE_FIELD_BOTTOM_FIELD; // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
+  vkpic->data.field_pic_flag = slice->header.field_pic_flag; // 0=frame picture, 1=field picture
+  vkpic->data.bottom_field_flag = slice->header.bottom_field_flag; // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
   vkpic->data.second_field = picture->second_field; // Second field of a complementary field pair
-  //vkpic->data.progressive_frame; // Frame is progressive
+  vkpic->data.progressive_frame = picture->field == GST_H264_PICTURE_FIELD_FRAME; // Frame is progressive
   //vkpic->data.top_field_first; // Frame pictures only
   //vkpic->data.repeat_first_field; // For 3:2 pulldown (number of additional fields,
         // 2=frame doubling, 4=frame tripling)
   vkpic->data.ref_pic_flag = picture->ref_pic; // Frame is a reference frame
   //vkpic->data.intra_pic_flag; // Frame is entirely intra coded (no temporal
         // dependencies)
-  vkpic->data.chroma_format = self->chroma_format_idc; // Chroma Format (should match sequence info)
+  vkpic->data.chroma_format = slice->header.pps->sequence->chroma_format_idc; // Chroma Format (should match sequence info)
   vkpic->data.picture_order_count = picture->pic_order_cnt; // picture order count (if known)
 
   vkpic->data.pbSideData = nullptr; // Encryption Info
@@ -243,7 +241,10 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   //vkpic->data.pSliceDataOffsets; // nNumSlices entries, contains offset of each slice
         // within the bitstream data buffer
 
-  //vkpic->data.CodecSpecific.h264.
+  auto *h264 = &vkpic->data.CodecSpecific.h264;
+
+  h264->CurrFieldOrderCnt[0] = slice->header.delta_pic_order_cnt[0];
+  h264->CurrFieldOrderCnt[1] = slice->header.delta_pic_order_cnt[1];
 
   return GST_FLOW_OK;
 }
