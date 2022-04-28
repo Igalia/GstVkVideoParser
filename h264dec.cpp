@@ -18,6 +18,7 @@
 #include "h264dec.h"
 
 #include "videoparser.h"
+#include "videoutils.h"
 
 #define GST_H264_DEC(obj)           ((GstH264Dec *) obj)
 #define GST_H264_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), G_TYPE_FROM_INSTANCE(obj), GstH264DecClass))
@@ -74,6 +75,15 @@ vk_pic_free (gpointer data)
   g_free (vkpic);
 }
 
+static bool
+profile_is_svc(GstCaps * caps)
+{
+  const GstStructure *structure = gst_caps_get_structure(caps, 0);
+  const gchar *profile = gst_structure_get_string(structure, "profile");
+
+  return g_str_has_prefix(profile, "scalable");
+}
+
 static GstFlowReturn
 gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint max_dpb_size)
 {
@@ -81,8 +91,11 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
   GstVideoDecoder *dec = GST_VIDEO_DECODER(decoder);
   GstVideoCodecState *state;
   VkParserSequenceInfo seqInfo = { };
+  guint dar_n = 0, dar_d = 0;
 
   seqInfo.eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
+  seqInfo.isSVC = profile_is_svc(decoder->input_state->caps);
+  seqInfo.frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info));
   seqInfo.bProgSeq = sps->frame_mbs_only_flag;
   if (sps->frame_cropping_flag) {
     seqInfo.nDisplayWidth = sps->crop_rect_width;
@@ -93,8 +106,8 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
   }
   seqInfo.nCodedWidth = sps->width;
   seqInfo.nCodedHeight = sps->height;
-  seqInfo.nMaxWidth = sps->width;
-  seqInfo.nMaxHeight = sps->height;
+  seqInfo.nMaxWidth = 0;
+  seqInfo.nMaxHeight = 0;
   seqInfo.nChromaFormat = sps->chroma_format_idc;         // Chroma Format (0=4:0:0, 1=4:2:0, 2=4:2:2, 3=4:4:4)
   seqInfo.uBitDepthLumaMinus8 = sps->bit_depth_luma_minus8; // Luma bit depth (0=8bit)
   seqInfo.uBitDepthChromaMinus8 = sps->bit_depth_chroma_minus8; // Chroma bit depth (0=8bit)
@@ -104,16 +117,23 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
          seqInfo.lBitrate = sps->vui_parameters.nal_hrd_parameters.bit_rate_scale;
     else if (sps->vui_parameters.vcl_hrd_parameters_present_flag)
          seqInfo.lBitrate = sps->vui_parameters.vcl_hrd_parameters.bit_rate_scale;
-    seqInfo.lDARWidth = sps->vui_parameters.par_n;
-    seqInfo.lDARHeight = sps->vui_parameters.par_d;
     seqInfo.lVideoFormat = sps->vui_parameters.video_format; // Video Format (VideoFormatXXX)
     seqInfo.lColorPrimaries = sps->vui_parameters.colour_primaries; // Colour Primaries (ColorPrimariesXXX)
     seqInfo.lTransferCharacteristics = sps->vui_parameters.transfer_characteristics;
     seqInfo.lMatrixCoefficients = sps->vui_parameters.matrix_coefficients;
   }
-  //  int32_t cbSequenceHeader; // Number of bytes in SequenceHeaderData
-  seqInfo.nMinNumDecodeSurfaces = max_dpb_size;
-  //  uint8_t SequenceHeaderData[1024]; // Raw sequence header data (codec-specific)
+
+  if (gst_video_calculate_display_ratio (&dar_n, &dar_d,
+          seqInfo.nDisplayWidth, seqInfo.nDisplayHeight,
+          GST_VIDEO_INFO_PAR_N(&decoder->input_state->info),
+          GST_VIDEO_INFO_PAR_D(&decoder->input_state->info), 1, 1)) {
+    seqInfo.lDARWidth = dar_n;
+    seqInfo.lDARHeight = dar_d;
+  }
+
+  seqInfo.cbSequenceHeader = 0; // Number of bytes in SequenceHeaderData
+  seqInfo.nMinNumDecodeSurfaces = max_dpb_size + 1;
+  // seqInfo.SequenceHeaderData[1024];
   seqInfo.pbSideData = nullptr;
   seqInfo.cbSideData = 0;
 
@@ -213,7 +233,7 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 static GstFlowReturn
 gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GstH264Dpb * dpb)
 {
-  GstH264Dec *self = GST_H264_DEC(decoder);
+  //GstH264Dec *self = GST_H264_DEC(decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
 
   //vkpic->data.PicWidthInMbs; // Coded Frame Size

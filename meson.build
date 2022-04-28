@@ -6,6 +6,7 @@ sources = [
   'videoparser.cpp',
   'h264dec.cpp',
   'pipeline.c',
+  'videoutils.c',
   'codecs/gsth264decoder.c',
   'codecs/gsth264picture.c',
 ]
