@@ -46,7 +46,8 @@ struct VkPic
 {
   VkPicIf *pic;
   VkParserPictureData data;
-  gint n_slices;
+  GByteArray *bitstream;
+  guint n_slices;
 };
 
 enum {
@@ -63,6 +64,7 @@ vk_pic_new (VkPicIf *pic)
   VkPic *vkpic = g_new0(struct VkPic, 1);
 
   vkpic->pic = pic;
+  vkpic->bitstream = g_byte_array_new ();
   return vkpic;
 }
 
@@ -72,6 +74,7 @@ vk_pic_free (gpointer data)
   VkPic *vkpic = static_cast<VkPic *>(data);
 
   vkpic->pic->Release();
+  g_byte_array_unref (vkpic->bitstream);
   g_free (vkpic);
 }
 
@@ -154,6 +157,7 @@ gst_h264_dec_decode_slice(GstH264Decoder * decoder, GstH264Picture * picture, Gs
   VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
 
   vkpic->n_slices++;
+  vkpic->bitstream = g_byte_array_append (vkpic->bitstream, slice->nalu.data, slice->nalu.size);
 
   return GST_FLOW_OK;
 }
@@ -217,15 +221,24 @@ static GstFlowReturn
 gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 {
   GstH264Dec *self = GST_H264_DEC(decoder);
-  VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));;
+  VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  gsize len;
+  uint32_t *slice_offsets;
 
   vkpic->data.nNumSlices = vkpic->n_slices; // Number of slices(tiles in case of AV1) in this picture
-  vkpic->n_slices = 0;
+  vkpic->data.pBitstreamData = g_byte_array_steal (vkpic->bitstream, &len);
+  vkpic->data.nBitstreamDataLen = static_cast<int32_t>(len);
+  slice_offsets = static_cast<uint32_t *>(g_malloc0 (vkpic->n_slices));
+  vkpic->data.pSliceDataOffsets = slice_offsets;
 
   if (self->client) {
     if (!self->client->DecodePicture(&vkpic->data))
       return GST_FLOW_ERROR;
   }
+
+  vkpic->n_slices = 0;
+  g_free (vkpic->data.pBitstreamData);
+  g_free (slice_offsets);
 
   return GST_FLOW_OK;
 }
@@ -246,7 +259,7 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   vkpic->data.second_field = picture->second_field; // Second field of a complementary field pair
   vkpic->data.progressive_frame = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_INTERLACED) == 0; // Frame is progressive
   vkpic->data.top_field_first = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_TFF) != 0;
-  vkpic->data.repeat_first_field = 2; // For 3:2 pulldown (number of additional fields,
+  vkpic->data.repeat_first_field = 0; // For 3:2 pulldown (number of additional fields,
         // 2=frame doubling, 4=frame tripling)
   vkpic->data.ref_pic_flag = picture->ref_pic; // Frame is a reference frame
   //vkpic->data.intra_pic_flag; // Frame is entirely intra coded (no temporal
@@ -307,11 +320,37 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     /* .pSequenceParameterSetVui = filled later */
   };
 
+  StdVideoH264PictureParameterSet std_pps = {
+    .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
+    .pic_parameter_set_id = static_cast<uint8_t>(pps->id),
+    .num_ref_idx_l0_default_active_minus1 = pps->num_ref_idx_l0_active_minus1,
+    .num_ref_idx_l1_default_active_minus1 = pps->num_ref_idx_l1_active_minus1,
+    .weighted_bipred_idc = static_cast<StdVideoH264WeightedBipredIdc>(pps->weighted_bipred_idc),
+    .pic_init_qp_minus26 = pps->pic_init_qp_minus26,
+    .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
+    .chroma_qp_index_offset = pps->chroma_qp_index_offset,
+    .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
+    .flags = {
+      .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
+      .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
+      .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
+      .deblocking_filter_control_present_flag =
+          pps->deblocking_filter_control_present_flag,
+      /* .weighted_bipred_idc_flag = , */
+      .weighted_pred_flag = pps->weighted_pred_flag,
+      .pic_order_present_flag = pps->pic_order_present_flag,
+      .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
+      .pic_scaling_matrix_present_flag = pps->pic_scaling_matrix_present_flag,
+    },
+    /* .pScalingLists = filled later */
+  };
+
   VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
 
   h264->pStdSps = &std_sps;
   h264->CurrFieldOrderCnt[0] = slice->header.delta_pic_order_cnt[0];
   h264->CurrFieldOrderCnt[1] = slice->header.delta_pic_order_cnt[1];
+  h264->pStdPps = &std_pps;
 
   return GST_FLOW_OK;
 }
