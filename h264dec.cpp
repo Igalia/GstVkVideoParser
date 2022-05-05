@@ -235,21 +235,23 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 {
   //GstH264Dec *self = GST_H264_DEC(decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  GstH264PPS *pps = slice->header.pps;
+  GstH264SPS *sps = pps->sequence;
 
-  //vkpic->data.PicWidthInMbs; // Coded Frame Size
-  //vkpic->data.FrameHeightInMbs; // Coded Frame Height
+  vkpic->data.PicWidthInMbs = sps->width / 16; // Coded Frame Size
+  vkpic->data.FrameHeightInMbs = sps->height / 16; // Coded Frame Height
   vkpic->data.pCurrPic = vkpic->pic;
   vkpic->data.field_pic_flag = slice->header.field_pic_flag; // 0=frame picture, 1=field picture
   vkpic->data.bottom_field_flag = slice->header.bottom_field_flag; // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
   vkpic->data.second_field = picture->second_field; // Second field of a complementary field pair
-  vkpic->data.progressive_frame = picture->field == GST_H264_PICTURE_FIELD_FRAME; // Frame is progressive
-  //vkpic->data.top_field_first; // Frame pictures only
-  //vkpic->data.repeat_first_field; // For 3:2 pulldown (number of additional fields,
+  vkpic->data.progressive_frame = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_INTERLACED) == 0; // Frame is progressive
+  vkpic->data.top_field_first = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_TFF) != 0;
+  vkpic->data.repeat_first_field = 2; // For 3:2 pulldown (number of additional fields,
         // 2=frame doubling, 4=frame tripling)
   vkpic->data.ref_pic_flag = picture->ref_pic; // Frame is a reference frame
   //vkpic->data.intra_pic_flag; // Frame is entirely intra coded (no temporal
         // dependencies)
-  vkpic->data.chroma_format = slice->header.pps->sequence->chroma_format_idc; // Chroma Format (should match sequence info)
+  vkpic->data.chroma_format = sps->chroma_format_idc; // Chroma Format (should match sequence info)
   vkpic->data.picture_order_count = picture->pic_order_cnt; // picture order count (if known)
 
   vkpic->data.pbSideData = nullptr; // Encryption Info
@@ -261,8 +263,53 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   //vkpic->data.pSliceDataOffsets; // nNumSlices entries, contains offset of each slice
         // within the bitstream data buffer
 
-  auto *h264 = &vkpic->data.CodecSpecific.h264;
+  const StdVideoH264SequenceParameterSet std_sps = {
+    .profile_idc = static_cast<StdVideoH264ProfileIdc>(sps->profile_idc),
+    .level_idc = static_cast<StdVideoH264Level>(sps->level_idc),
+    .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
+    .chroma_format_idc = static_cast<StdVideoH264ChromaFormatIdc>(sps->chroma_format_idc),
+    .bit_depth_luma_minus8 = sps->bit_depth_luma_minus8,
+    .bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8,
+    .log2_max_frame_num_minus4 = sps->log2_max_frame_num_minus4,
+    .pic_order_cnt_type = static_cast<StdVideoH264PocType>(sps->pic_order_cnt_type),
+    .log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4,
+    .offset_for_non_ref_pic = sps->offset_for_non_ref_pic,
+    .offset_for_top_to_bottom_field = sps->offset_for_top_to_bottom_field,
+    .num_ref_frames_in_pic_order_cnt_cycle = sps->num_ref_frames_in_pic_order_cnt_cycle,
+    .max_num_ref_frames = static_cast<uint8_t>(sps->num_ref_frames),
+    .pic_width_in_mbs_minus1 = sps->pic_width_in_mbs_minus1,
+    .pic_height_in_map_units_minus1 = sps->pic_height_in_map_units_minus1,
+    .frame_crop_left_offset = sps->frame_crop_left_offset,
+    .frame_crop_right_offset = sps->frame_crop_right_offset,
+    .frame_crop_top_offset = sps->frame_crop_top_offset,
+    .frame_crop_bottom_offset = sps->frame_crop_bottom_offset,
+    .flags = {
+      .constraint_set0_flag = sps->constraint_set0_flag,
+      .constraint_set1_flag = sps->constraint_set1_flag,
+      .constraint_set2_flag = sps->constraint_set2_flag,
+      .constraint_set3_flag = sps->constraint_set3_flag,
+      .constraint_set4_flag = sps->constraint_set4_flag,
+      .constraint_set5_flag = sps->constraint_set4_flag,
+      .direct_8x8_inference_flag = sps->direct_8x8_inference_flag,
+      .mb_adaptive_frame_field_flag = sps->mb_adaptive_frame_field_flag,
+      .frame_mbs_only_flag = sps->frame_mbs_only_flag,
+      .delta_pic_order_always_zero_flag = sps->delta_pic_order_always_zero_flag,
+      .gaps_in_frame_num_value_allowed_flag =
+          sps->gaps_in_frame_num_value_allowed_flag,
+      .qpprime_y_zero_transform_bypass_flag =
+          sps->qpprime_y_zero_transform_bypass_flag,
+      .frame_cropping_flag = sps->frame_cropping_flag,
+      .seq_scaling_matrix_present_flag = sps->scaling_matrix_present_flag,
+      .vui_parameters_present_flag = sps->vui_parameters_present_flag,
+    },
+    /* .offset_for_ref_frame[255] = filled later */
+    /* .pScalingLists = filled later */
+    /* .pSequenceParameterSetVui = filled later */
+  };
 
+  VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
+
+  h264->pStdSps = &std_sps;
   h264->CurrFieldOrderCnt[0] = slice->header.delta_pic_order_cnt[0];
   h264->CurrFieldOrderCnt[1] = slice->header.delta_pic_order_cnt[1];
 
