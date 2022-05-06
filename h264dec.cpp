@@ -250,31 +250,76 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
   GstH264PPS *pps = slice->header.pps;
   GstH264SPS *sps = pps->sequence;
+  StdVideoH264ScalingLists scaling_lists_sps = { 0, }, scaling_lists_pps = { 0, };
 
-  vkpic->data.PicWidthInMbs = sps->width / 16; // Coded Frame Size
-  vkpic->data.FrameHeightInMbs = sps->height / 16; // Coded Frame Height
-  vkpic->data.pCurrPic = vkpic->pic;
-  vkpic->data.field_pic_flag = slice->header.field_pic_flag; // 0=frame picture, 1=field picture
-  vkpic->data.bottom_field_flag = slice->header.bottom_field_flag; // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
-  vkpic->data.second_field = picture->second_field; // Second field of a complementary field pair
-  vkpic->data.progressive_frame = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_INTERLACED) == 0; // Frame is progressive
-  vkpic->data.top_field_first = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_TFF) != 0;
-  vkpic->data.repeat_first_field = 0; // For 3:2 pulldown (number of additional fields,
-        // 2=frame doubling, 4=frame tripling)
-  vkpic->data.ref_pic_flag = picture->ref_pic; // Frame is a reference frame
-  //vkpic->data.intra_pic_flag; // Frame is entirely intra coded (no temporal
-        // dependencies)
-  vkpic->data.chroma_format = sps->chroma_format_idc; // Chroma Format (should match sequence info)
-  vkpic->data.picture_order_count = picture->pic_order_cnt; // picture order count (if known)
+  if (sps->scaling_matrix_present_flag) {
+    scaling_lists_sps.scaling_list_present_mask = 1;
+    scaling_lists_sps.use_default_scaling_matrix_mask = 0;
 
-  vkpic->data.pbSideData = nullptr; // Encryption Info
-  vkpic->data.nSideDataLen = 0; // Encryption Info length
+    memcpy (&scaling_lists_sps.ScalingList4x4, &sps->scaling_lists_4x4, sizeof (scaling_lists_sps.ScalingList4x4));
+    memcpy (&scaling_lists_sps.ScalingList8x8, &sps->scaling_lists_8x8, sizeof (scaling_lists_sps.ScalingList8x8));
+  }
 
-  // Bitstream data
-  //vkpic->data.nBitstreamDataLen; // Number of bytes in bitstream data buffer
-  //vkpic->data.pBitstreamData; // Ptr to bitstream data for this picture (slice-layer)
-  //vkpic->data.pSliceDataOffsets; // nNumSlices entries, contains offset of each slice
-        // within the bitstream data buffer
+  if (pps->pic_scaling_matrix_present_flag) {
+    scaling_lists_pps.scaling_list_present_mask = 1;
+    scaling_lists_pps.use_default_scaling_matrix_mask = 0;
+
+    memcpy (&scaling_lists_pps.ScalingList4x4, &pps->scaling_lists_4x4, sizeof (scaling_lists_pps.ScalingList4x4));
+    memcpy (&scaling_lists_pps.ScalingList8x8, &pps->scaling_lists_8x8, sizeof (scaling_lists_pps.ScalingList8x8));
+  }
+
+  GstH264VUIParams *vuiparams = &sps->vui_parameters;
+  GstH264HRDParams *hrdparams = NULL;
+  StdVideoH264HrdParameters hrd_params;
+
+  if (vuiparams->nal_hrd_parameters_present_flag)
+    hrdparams = &vuiparams->nal_hrd_parameters;
+  else if (vuiparams->vcl_hrd_parameters_present_flag)
+    hrdparams = &vuiparams->vcl_hrd_parameters;
+
+  if (hrdparams) {
+    hrd_params = (StdVideoH264HrdParameters) {
+      .cpb_cnt_minus1 = hrdparams->cpb_cnt_minus1,
+      .bit_rate_scale = hrdparams->bit_rate_scale,
+      .cpb_size_scale = hrdparams->cpb_size_scale,
+      .initial_cpb_removal_delay_length_minus1 = hrdparams->initial_cpb_removal_delay_length_minus1,
+      .cpb_removal_delay_length_minus1 = hrdparams->cpb_removal_delay_length_minus1,
+      .dpb_output_delay_length_minus1 = hrdparams->dpb_output_delay_length_minus1,
+      .time_offset_length = hrdparams->time_offset_length,
+    };
+
+    memcpy (&hrd_params.bit_rate_value_minus1, hrdparams->bit_rate_value_minus1, sizeof (hrd_params.bit_rate_value_minus1));
+    memcpy (&hrd_params.cpb_size_value_minus1, hrdparams->cpb_size_value_minus1, sizeof (hrd_params.cpb_size_value_minus1));
+  }
+
+  StdVideoH264SequenceParameterSetVui vui = {
+    .flags = {
+      .aspect_ratio_info_present_flag = vuiparams->aspect_ratio_info_present_flag,
+      .overscan_info_present_flag = vuiparams->overscan_info_present_flag,
+      .overscan_appropriate_flag = vuiparams->overscan_appropriate_flag,
+      .video_signal_type_present_flag = vuiparams->video_signal_type_present_flag,
+      .video_full_range_flag = vuiparams->video_full_range_flag,
+      .color_description_present_flag = vuiparams->colour_description_present_flag,
+      .chroma_loc_info_present_flag = vuiparams->chroma_loc_info_present_flag,
+      .timing_info_present_flag = vuiparams->timing_info_present_flag,
+      .fixed_frame_rate_flag = vuiparams->fixed_frame_rate_flag,
+      .bitstream_restriction_flag = vuiparams->bitstream_restriction_flag,
+      .nal_hrd_parameters_present_flag = vuiparams->nal_hrd_parameters_present_flag,
+      .vcl_hrd_parameters_present_flag = vuiparams->vcl_hrd_parameters_present_flag,
+    },
+    .aspect_ratio_idc = static_cast<StdVideoH264AspectRatioIdc>(vuiparams->aspect_ratio_idc),
+    .sar_width = vuiparams->sar_width,
+    .sar_height = vuiparams->sar_height,
+    .video_format = vuiparams->video_format,
+    .color_primaries = vuiparams->colour_primaries,
+    .transfer_characteristics = vuiparams->transfer_characteristics,
+    .matrix_coefficients = vuiparams->matrix_coefficients,
+    .num_units_in_tick = vuiparams->num_units_in_tick,
+    .time_scale = vuiparams->time_scale,
+    .pHrdParameters = hrdparams ? &hrd_params : NULL,
+    .max_num_reorder_frames = static_cast<uint8_t>(vuiparams->num_reorder_frames),
+    .max_dec_frame_buffering = static_cast<uint8_t>(vuiparams->max_dec_frame_buffering),
+  };
 
   const StdVideoH264SequenceParameterSet std_sps = {
     .flags = {
@@ -314,9 +359,9 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .frame_crop_right_offset = sps->frame_crop_right_offset,
     .frame_crop_top_offset = sps->frame_crop_top_offset,
     .frame_crop_bottom_offset = sps->frame_crop_bottom_offset,
-    /* .pOffsetForRefFrame = filled later */
-    /* .pScalingLists = filled later */
-    /* .pSequenceParameterSetVui = filled later */
+    .pOffsetForRefFrame = sps->offset_for_ref_frame,
+    .pScalingLists = sps->scaling_matrix_present_flag ? &scaling_lists_sps : NULL,
+    .pSequenceParameterSetVui = sps->vui_parameters_present_flag ? &vui : NULL,
   };
 
   StdVideoH264PictureParameterSet std_pps = {
@@ -325,7 +370,7 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
       .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
       .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
       .deblocking_filter_control_present_flag = pps->deblocking_filter_control_present_flag,
-      /* .weighted_bipred_idc_flag = , */
+      .weighted_bipred_idc_flag = pps->weighted_bipred_idc,
       .weighted_pred_flag = pps->weighted_pred_flag,
       .pic_order_present_flag = pps->pic_order_present_flag,
       .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
@@ -340,15 +385,67 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
     .chroma_qp_index_offset = pps->chroma_qp_index_offset,
     .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
-    /* .pScalingLists = filled later */
+    .pScalingLists = pps->pic_scaling_matrix_present_flag ? &scaling_lists_pps : NULL,
+  };
+
+  vkpic->data = (VkParserPictureData) {
+    .PicWidthInMbs = sps->width / 16, // Coded Frame Size
+    .FrameHeightInMbs = sps->height / 16, // Coded Frame Height
+    .pCurrPic = vkpic->pic,
+    .field_pic_flag = slice->header.field_pic_flag, // 0=frame picture, 1=field picture
+    .bottom_field_flag = slice->header.bottom_field_flag, // 0=top field, 1=bottom field (ignored if field_pic_flag=0)
+    .second_field = picture->second_field, // Second field of a complementary field pair
+    .progressive_frame = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_INTERLACED) == 0, // Frame is progressive
+    .top_field_first = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_TFF) != 0,
+    .repeat_first_field = 0, // For 3:2 pulldown (number of additional fields,
+    // 2=frame doubling, 4=frame tripling)
+    .ref_pic_flag = picture->ref_pic, // Frame is a reference frame
+    //.intra_pic_flag, // Frame is entirely intra coded (no temporal
+    // dependencies)
+    .chroma_format = sps->chroma_format_idc, // Chroma Format (should match sequence info)
+    .picture_order_count = picture->pic_order_cnt, // picture order count (if known)
+
+    .pbSideData = nullptr, // Encryption Info
+    .nSideDataLen = 0, // Encryption Info length
+
+    // Bitstream data
+    //.nBitstreamDataLen, // Number of bytes in bitstream data buffer
+    //.pBitstreamData, // Ptr to bitstream data for this picture (slice-layer)
+    //.pSliceDataOffsets, // nNumSlices entries, contains offset of each slice
+    // within the bitstream data buffer
   };
 
   VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
-
-  h264->pStdSps = &std_sps;
-  h264->pStdPps = &std_pps;
-  h264->CurrFieldOrderCnt[0] = slice->header.delta_pic_order_cnt[0];
-  h264->CurrFieldOrderCnt[1] = slice->header.delta_pic_order_cnt[1];
+  *h264 = (VkParserH264PictureData) {
+    .pStdSps = &std_sps,
+    .pStdPps = &std_pps,
+    .CurrFieldOrderCnt = { slice->header.delta_pic_order_cnt[0], slice->header.delta_pic_order_cnt[2] },
+    // uint8_t  pic_parameter_set_id;          // PPS ID
+    // uint8_t  seq_parameter_set_id;          // SPS ID
+    // int32_t num_ref_idx_l0_active_minus1;
+    // int32_t num_ref_idx_l1_active_minus1;
+    // int32_t weighted_pred_flag;
+    // int32_t weighted_bipred_idc;
+    // int32_t pic_init_qp_minus26;
+    // int32_t redundant_pic_cnt_present_flag;
+    // uint8_t deblocking_filter_control_present_flag;
+    // uint8_t transform_8x8_mode_flag;
+    // uint8_t MbaffFrameFlag;
+    // uint8_t constrained_intra_pred_flag;
+    // uint8_t entropy_coding_mode_flag;
+    // uint8_t pic_order_present_flag;
+    // int8_t chroma_qp_index_offset;
+    // int8_t second_chroma_qp_index_offset;
+    // int32_t frame_num;
+    // uint8_t fmo_aso_enable;
+    // uint8_t num_slice_groups_minus1;
+    // uint8_t slice_group_map_type;
+    // int8_t pic_init_qs_minus26;
+    // uint32_t slice_group_change_rate_minus1;
+    // const uint8_t* pMb2SliceGroupMap;
+    // // DPB
+    // VkParserH264DpbEntry dpb[16 + 1]; // List of reference frames within the DPB
+  };
 
   return GST_FLOW_OK;
 }
