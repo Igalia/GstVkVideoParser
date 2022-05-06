@@ -14,7 +14,7 @@ sources = [
 videoparser = shared_library(
   'gst-vkvideo-parser',
   sources,
-  include_directories: 'codecs',
+  include_directories: ['codecs', 'vulkan', 'vk_video' ],
   cpp_args: '-DGST_USE_UNSTABLE_API',
   c_args: '-DGST_USE_UNSTABLE_API',
   dependencies: [

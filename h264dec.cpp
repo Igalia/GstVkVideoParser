@@ -277,6 +277,24 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
         // within the bitstream data buffer
 
   const StdVideoH264SequenceParameterSet std_sps = {
+    .flags = {
+      .constraint_set0_flag = sps->constraint_set0_flag,
+      .constraint_set1_flag = sps->constraint_set1_flag,
+      .constraint_set2_flag = sps->constraint_set2_flag,
+      .constraint_set3_flag = sps->constraint_set3_flag,
+      .constraint_set4_flag = sps->constraint_set4_flag,
+      .constraint_set5_flag = sps->constraint_set4_flag,
+      .direct_8x8_inference_flag = sps->direct_8x8_inference_flag,
+      .mb_adaptive_frame_field_flag = sps->mb_adaptive_frame_field_flag,
+      .frame_mbs_only_flag = sps->frame_mbs_only_flag,
+      .delta_pic_order_always_zero_flag = sps->delta_pic_order_always_zero_flag,
+      .separate_colour_plane_flag = sps->separate_colour_plane_flag,
+      .gaps_in_frame_num_value_allowed_flag = sps->gaps_in_frame_num_value_allowed_flag,
+      .qpprime_y_zero_transform_bypass_flag = sps->qpprime_y_zero_transform_bypass_flag,
+      .frame_cropping_flag = sps->frame_cropping_flag,
+      .seq_scaling_matrix_present_flag = sps->scaling_matrix_present_flag,
+      .vui_parameters_present_flag = sps->vui_parameters_present_flag,
+    },
     .profile_idc = static_cast<StdVideoH264ProfileIdc>(sps->profile_idc),
     .level_idc = static_cast<StdVideoH264Level>(sps->level_idc),
     .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
@@ -296,31 +314,23 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .frame_crop_right_offset = sps->frame_crop_right_offset,
     .frame_crop_top_offset = sps->frame_crop_top_offset,
     .frame_crop_bottom_offset = sps->frame_crop_bottom_offset,
-    .flags = {
-      .constraint_set0_flag = sps->constraint_set0_flag,
-      .constraint_set1_flag = sps->constraint_set1_flag,
-      .constraint_set2_flag = sps->constraint_set2_flag,
-      .constraint_set3_flag = sps->constraint_set3_flag,
-      .constraint_set4_flag = sps->constraint_set4_flag,
-      .constraint_set5_flag = sps->constraint_set4_flag,
-      .direct_8x8_inference_flag = sps->direct_8x8_inference_flag,
-      .mb_adaptive_frame_field_flag = sps->mb_adaptive_frame_field_flag,
-      .frame_mbs_only_flag = sps->frame_mbs_only_flag,
-      .delta_pic_order_always_zero_flag = sps->delta_pic_order_always_zero_flag,
-      .gaps_in_frame_num_value_allowed_flag =
-          sps->gaps_in_frame_num_value_allowed_flag,
-      .qpprime_y_zero_transform_bypass_flag =
-          sps->qpprime_y_zero_transform_bypass_flag,
-      .frame_cropping_flag = sps->frame_cropping_flag,
-      .seq_scaling_matrix_present_flag = sps->scaling_matrix_present_flag,
-      .vui_parameters_present_flag = sps->vui_parameters_present_flag,
-    },
-    /* .offset_for_ref_frame[255] = filled later */
+    /* .pOffsetForRefFrame = filled later */
     /* .pScalingLists = filled later */
     /* .pSequenceParameterSetVui = filled later */
   };
 
   StdVideoH264PictureParameterSet std_pps = {
+    .flags = {
+      .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
+      .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
+      .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
+      .deblocking_filter_control_present_flag = pps->deblocking_filter_control_present_flag,
+      /* .weighted_bipred_idc_flag = , */
+      .weighted_pred_flag = pps->weighted_pred_flag,
+      .pic_order_present_flag = pps->pic_order_present_flag,
+      .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
+      .pic_scaling_matrix_present_flag = pps->pic_scaling_matrix_present_flag,
+    },
     .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
     .pic_parameter_set_id = static_cast<uint8_t>(pps->id),
     .num_ref_idx_l0_default_active_minus1 = pps->num_ref_idx_l0_active_minus1,
@@ -330,27 +340,15 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
     .chroma_qp_index_offset = pps->chroma_qp_index_offset,
     .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
-    .flags = {
-      .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
-      .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
-      .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
-      .deblocking_filter_control_present_flag =
-          pps->deblocking_filter_control_present_flag,
-      /* .weighted_bipred_idc_flag = , */
-      .weighted_pred_flag = pps->weighted_pred_flag,
-      .pic_order_present_flag = pps->pic_order_present_flag,
-      .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
-      .pic_scaling_matrix_present_flag = pps->pic_scaling_matrix_present_flag,
-    },
     /* .pScalingLists = filled later */
   };
 
   VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
 
   h264->pStdSps = &std_sps;
+  h264->pStdPps = &std_pps;
   h264->CurrFieldOrderCnt[0] = slice->header.delta_pic_order_cnt[0];
   h264->CurrFieldOrderCnt[1] = slice->header.delta_pic_order_cnt[1];
-  h264->pStdPps = &std_pps;
 
   return GST_FLOW_OK;
 }
