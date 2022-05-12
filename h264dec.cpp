@@ -48,6 +48,13 @@ struct VkPic
   VkParserPictureData data;
   GByteArray *bitstream;
   guint n_slices;
+
+  StdVideoH264HrdParameters hrd;
+  StdVideoH264SequenceParameterSetVui vui;
+  StdVideoH264SequenceParameterSet sps;
+  StdVideoH264PictureParameterSet pps;
+  StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
+  uint8_t *slice_group_map;
 };
 
 enum {
@@ -75,6 +82,7 @@ vk_pic_free (gpointer data)
 
   vkpic->pic->Release();
   g_byte_array_unref (vkpic->bitstream);
+  g_free (vkpic->slice_group_map);
   g_free (vkpic);
 }
 
@@ -243,6 +251,71 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
   return GST_FLOW_OK;
 }
 
+static uint8_t *
+get_slice_group_map (GstH264PPS * pps)
+{
+  uint8_t *ret, i, j, k;
+
+  ret = g_new0 (uint8_t, pps->pic_size_in_map_units_minus1 + 1);
+
+  if (pps->num_slice_groups_minus1 == 0)
+    return ret;
+
+  switch (pps->slice_group_map_type) {
+    case 0:{
+      i = 0;
+      do {
+        for (j = 0; j <= pps->num_slice_groups_minus1 && i <= pps->pic_size_in_map_units_minus1;
+             i += pps->run_length_minus1[j++] + 1) {
+          for (k = 0; k <= pps->run_length_minus1[j] && i + k <= pps->pic_size_in_map_units_minus1;
+               k++)
+            ret[i + k] = j;
+        }
+      } while (i <= pps->pic_size_in_map_units_minus1);
+      break;
+    }
+    case 1:{
+      for (i = 0; i <= pps->pic_size_in_map_units_minus1; i++) {
+        ret[i] = (( i % (pps->sequence->pic_width_in_mbs_minus1 + 1)) +
+                  (((i / (pps->sequence->pic_width_in_mbs_minus1 + 1)) *
+                    (pps->num_slice_groups_minus1 + 1)) / 2)) %
+            (pps->num_slice_groups_minus1 + 1);
+      }
+      break;
+    }
+    case 2:{
+      uint32_t ytl, xtl, ybr, xbr;
+
+      for (i = 0; i <= pps->pic_size_in_map_units_minus1; i++)
+        ret[i] = pps->num_slice_groups_minus1;
+      for (i = pps->num_slice_groups_minus1 - 1; i >= 0; i--) {
+        ytl = pps->top_left[i] / (pps->sequence->pic_width_in_mbs_minus1 + 1);
+        xtl = pps->top_left[i] % (pps->sequence->pic_width_in_mbs_minus1 + 1);
+        ybr = pps->bottom_right[i] / (pps->sequence->pic_width_in_mbs_minus1 + 1);
+        xbr = pps->bottom_right[i] % (pps->sequence->pic_width_in_mbs_minus1 + 1);
+
+        for (j = ytl; j < ybr; j++)
+          for (k = xtl; k < xbr; k++)
+            ret[j * (pps->sequence->pic_width_in_mbs_minus1 + 1) + k] = i;
+      }
+      break;
+    }
+    case 3:
+    case 4:
+    case 5:
+      /* @TODO */
+      break;
+    case 6:
+      for (i = 0; i <= pps->pic_size_in_map_units_minus1; i++)
+        ret[i] = pps->slice_group_id[i];
+      break;
+    default:
+      break;
+  };
+
+  return ret;
+}
+
 static GstFlowReturn
 gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GstH264Dpb * dpb)
 {
@@ -250,78 +323,81 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
   GstH264PPS *pps = slice->header.pps;
   GstH264SPS *sps = pps->sequence;
-  StdVideoH264ScalingLists scaling_lists_sps = { 0, }, scaling_lists_pps = { 0, };
+  GArray *pic_list;
+  guint i;
+
+  vkpic->scaling_lists_pps = { 0, };
+  vkpic->scaling_lists_sps = { 0, };
 
   if (sps->scaling_matrix_present_flag) {
-    scaling_lists_sps.scaling_list_present_mask = 1;
-    scaling_lists_sps.use_default_scaling_matrix_mask = 0;
+    vkpic->scaling_lists_sps.scaling_list_present_mask = 1;
+    vkpic->scaling_lists_sps.use_default_scaling_matrix_mask = 0;
 
-    memcpy (&scaling_lists_sps.ScalingList4x4, &sps->scaling_lists_4x4, sizeof (scaling_lists_sps.ScalingList4x4));
-    memcpy (&scaling_lists_sps.ScalingList8x8, &sps->scaling_lists_8x8, sizeof (scaling_lists_sps.ScalingList8x8));
+    memcpy (&vkpic->scaling_lists_sps.ScalingList4x4, &sps->scaling_lists_4x4, sizeof (vkpic->scaling_lists_sps.ScalingList4x4));
+    memcpy (&vkpic->scaling_lists_sps.ScalingList8x8, &sps->scaling_lists_8x8, sizeof (vkpic->scaling_lists_sps.ScalingList8x8));
   }
 
   if (pps->pic_scaling_matrix_present_flag) {
-    scaling_lists_pps.scaling_list_present_mask = 1;
-    scaling_lists_pps.use_default_scaling_matrix_mask = 0;
+    vkpic->scaling_lists_pps.scaling_list_present_mask = 1;
+    vkpic->scaling_lists_pps.use_default_scaling_matrix_mask = 0;
 
-    memcpy (&scaling_lists_pps.ScalingList4x4, &pps->scaling_lists_4x4, sizeof (scaling_lists_pps.ScalingList4x4));
-    memcpy (&scaling_lists_pps.ScalingList8x8, &pps->scaling_lists_8x8, sizeof (scaling_lists_pps.ScalingList8x8));
+    memcpy (&vkpic->scaling_lists_pps.ScalingList4x4, &pps->scaling_lists_4x4, sizeof (vkpic->scaling_lists_pps.ScalingList4x4));
+    memcpy (&vkpic->scaling_lists_pps.ScalingList8x8, &pps->scaling_lists_8x8, sizeof (vkpic->scaling_lists_pps.ScalingList8x8));
   }
 
-  GstH264VUIParams *vuiparams = &sps->vui_parameters;
-  GstH264HRDParams *hrdparams = NULL;
-  StdVideoH264HrdParameters hrd_params;
+  GstH264VUIParams *vui = &sps->vui_parameters;
+  GstH264HRDParams *hrd = NULL;
 
-  if (vuiparams->nal_hrd_parameters_present_flag)
-    hrdparams = &vuiparams->nal_hrd_parameters;
-  else if (vuiparams->vcl_hrd_parameters_present_flag)
-    hrdparams = &vuiparams->vcl_hrd_parameters;
+  if (vui->nal_hrd_parameters_present_flag)
+    hrd = &vui->nal_hrd_parameters;
+  else if (vui->vcl_hrd_parameters_present_flag)
+    hrd = &vui->vcl_hrd_parameters;
 
-  if (hrdparams) {
-    hrd_params = (StdVideoH264HrdParameters) {
-      .cpb_cnt_minus1 = hrdparams->cpb_cnt_minus1,
-      .bit_rate_scale = hrdparams->bit_rate_scale,
-      .cpb_size_scale = hrdparams->cpb_size_scale,
-      .initial_cpb_removal_delay_length_minus1 = hrdparams->initial_cpb_removal_delay_length_minus1,
-      .cpb_removal_delay_length_minus1 = hrdparams->cpb_removal_delay_length_minus1,
-      .dpb_output_delay_length_minus1 = hrdparams->dpb_output_delay_length_minus1,
-      .time_offset_length = hrdparams->time_offset_length,
+  if (hrd) {
+    vkpic->hrd = (StdVideoH264HrdParameters) {
+      .cpb_cnt_minus1 = hrd->cpb_cnt_minus1,
+      .bit_rate_scale = hrd->bit_rate_scale,
+      .cpb_size_scale = hrd->cpb_size_scale,
+      .initial_cpb_removal_delay_length_minus1 = hrd->initial_cpb_removal_delay_length_minus1,
+      .cpb_removal_delay_length_minus1 = hrd->cpb_removal_delay_length_minus1,
+      .dpb_output_delay_length_minus1 = hrd->dpb_output_delay_length_minus1,
+      .time_offset_length = hrd->time_offset_length,
     };
 
-    memcpy (&hrd_params.bit_rate_value_minus1, hrdparams->bit_rate_value_minus1, sizeof (hrd_params.bit_rate_value_minus1));
-    memcpy (&hrd_params.cpb_size_value_minus1, hrdparams->cpb_size_value_minus1, sizeof (hrd_params.cpb_size_value_minus1));
+    memcpy (&vkpic->hrd.bit_rate_value_minus1, hrd->bit_rate_value_minus1, sizeof (vkpic->hrd.bit_rate_value_minus1));
+    memcpy (&vkpic->hrd.cpb_size_value_minus1, hrd->cpb_size_value_minus1, sizeof (vkpic->hrd.cpb_size_value_minus1));
   }
 
-  StdVideoH264SequenceParameterSetVui vui = {
+  vkpic->vui = (StdVideoH264SequenceParameterSetVui) {
     .flags = {
-      .aspect_ratio_info_present_flag = vuiparams->aspect_ratio_info_present_flag,
-      .overscan_info_present_flag = vuiparams->overscan_info_present_flag,
-      .overscan_appropriate_flag = vuiparams->overscan_appropriate_flag,
-      .video_signal_type_present_flag = vuiparams->video_signal_type_present_flag,
-      .video_full_range_flag = vuiparams->video_full_range_flag,
-      .color_description_present_flag = vuiparams->colour_description_present_flag,
-      .chroma_loc_info_present_flag = vuiparams->chroma_loc_info_present_flag,
-      .timing_info_present_flag = vuiparams->timing_info_present_flag,
-      .fixed_frame_rate_flag = vuiparams->fixed_frame_rate_flag,
-      .bitstream_restriction_flag = vuiparams->bitstream_restriction_flag,
-      .nal_hrd_parameters_present_flag = vuiparams->nal_hrd_parameters_present_flag,
-      .vcl_hrd_parameters_present_flag = vuiparams->vcl_hrd_parameters_present_flag,
+      .aspect_ratio_info_present_flag = vui->aspect_ratio_info_present_flag,
+      .overscan_info_present_flag = vui->overscan_info_present_flag,
+      .overscan_appropriate_flag = vui->overscan_appropriate_flag,
+      .video_signal_type_present_flag = vui->video_signal_type_present_flag,
+      .video_full_range_flag = vui->video_full_range_flag,
+      .color_description_present_flag = vui->colour_description_present_flag,
+      .chroma_loc_info_present_flag = vui->chroma_loc_info_present_flag,
+      .timing_info_present_flag = vui->timing_info_present_flag,
+      .fixed_frame_rate_flag = vui->fixed_frame_rate_flag,
+      .bitstream_restriction_flag = vui->bitstream_restriction_flag,
+      .nal_hrd_parameters_present_flag = vui->nal_hrd_parameters_present_flag,
+      .vcl_hrd_parameters_present_flag = vui->vcl_hrd_parameters_present_flag,
     },
-    .aspect_ratio_idc = static_cast<StdVideoH264AspectRatioIdc>(vuiparams->aspect_ratio_idc),
-    .sar_width = vuiparams->sar_width,
-    .sar_height = vuiparams->sar_height,
-    .video_format = vuiparams->video_format,
-    .color_primaries = vuiparams->colour_primaries,
-    .transfer_characteristics = vuiparams->transfer_characteristics,
-    .matrix_coefficients = vuiparams->matrix_coefficients,
-    .num_units_in_tick = vuiparams->num_units_in_tick,
-    .time_scale = vuiparams->time_scale,
-    .pHrdParameters = hrdparams ? &hrd_params : NULL,
-    .max_num_reorder_frames = static_cast<uint8_t>(vuiparams->num_reorder_frames),
-    .max_dec_frame_buffering = static_cast<uint8_t>(vuiparams->max_dec_frame_buffering),
+    .aspect_ratio_idc = static_cast<StdVideoH264AspectRatioIdc>(vui->aspect_ratio_idc),
+    .sar_width = vui->sar_width,
+    .sar_height = vui->sar_height,
+    .video_format = vui->video_format,
+    .color_primaries = vui->colour_primaries,
+    .transfer_characteristics = vui->transfer_characteristics,
+    .matrix_coefficients = vui->matrix_coefficients,
+    .num_units_in_tick = vui->num_units_in_tick,
+    .time_scale = vui->time_scale,
+    .pHrdParameters = hrd ? &vkpic->hrd : NULL,
+    .max_num_reorder_frames = static_cast<uint8_t>(vui->num_reorder_frames),
+    .max_dec_frame_buffering = static_cast<uint8_t>(vui->max_dec_frame_buffering),
   };
 
-  const StdVideoH264SequenceParameterSet std_sps = {
+  vkpic->sps = (StdVideoH264SequenceParameterSet) {
     .flags = {
       .constraint_set0_flag = sps->constraint_set0_flag,
       .constraint_set1_flag = sps->constraint_set1_flag,
@@ -360,11 +436,11 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .frame_crop_top_offset = sps->frame_crop_top_offset,
     .frame_crop_bottom_offset = sps->frame_crop_bottom_offset,
     .pOffsetForRefFrame = sps->offset_for_ref_frame,
-    .pScalingLists = sps->scaling_matrix_present_flag ? &scaling_lists_sps : NULL,
-    .pSequenceParameterSetVui = sps->vui_parameters_present_flag ? &vui : NULL,
+    .pScalingLists = sps->scaling_matrix_present_flag ? &vkpic->scaling_lists_sps : NULL,
+    .pSequenceParameterSetVui = sps->vui_parameters_present_flag ? &vkpic->vui : NULL,
   };
 
-  StdVideoH264PictureParameterSet std_pps = {
+  vkpic->pps = (StdVideoH264PictureParameterSet) {
     .flags = {
       .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
       .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
@@ -385,7 +461,7 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
     .chroma_qp_index_offset = pps->chroma_qp_index_offset,
     .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
-    .pScalingLists = pps->pic_scaling_matrix_present_flag ? &scaling_lists_pps : NULL,
+    .pScalingLists = pps->pic_scaling_matrix_present_flag ? &vkpic->scaling_lists_pps : NULL,
   };
 
   vkpic->data = (VkParserPictureData) {
@@ -417,35 +493,50 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 
   VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
   *h264 = (VkParserH264PictureData) {
-    .pStdSps = &std_sps,
-    .pStdPps = &std_pps,
-    .CurrFieldOrderCnt = { slice->header.delta_pic_order_cnt[0], slice->header.delta_pic_order_cnt[2] },
-    // uint8_t  pic_parameter_set_id;          // PPS ID
-    // uint8_t  seq_parameter_set_id;          // SPS ID
-    // int32_t num_ref_idx_l0_active_minus1;
-    // int32_t num_ref_idx_l1_active_minus1;
-    // int32_t weighted_pred_flag;
-    // int32_t weighted_bipred_idc;
-    // int32_t pic_init_qp_minus26;
-    // int32_t redundant_pic_cnt_present_flag;
-    // uint8_t deblocking_filter_control_present_flag;
-    // uint8_t transform_8x8_mode_flag;
-    // uint8_t MbaffFrameFlag;
-    // uint8_t constrained_intra_pred_flag;
-    // uint8_t entropy_coding_mode_flag;
-    // uint8_t pic_order_present_flag;
-    // int8_t chroma_qp_index_offset;
-    // int8_t second_chroma_qp_index_offset;
-    // int32_t frame_num;
-    // uint8_t fmo_aso_enable;
-    // uint8_t num_slice_groups_minus1;
-    // uint8_t slice_group_map_type;
-    // int8_t pic_init_qs_minus26;
-    // uint32_t slice_group_change_rate_minus1;
-    // const uint8_t* pMb2SliceGroupMap;
+    .pStdSps = &vkpic->sps,
+    .pStdPps = &vkpic->pps,
+    .pic_parameter_set_id = static_cast<uint8_t>(pps->id),          // PPS ID
+    .seq_parameter_set_id = static_cast<uint8_t>(pps->sequence->id),          // SPS ID
+    .num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_active_minus1,
+    .num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_active_minus1,
+    .weighted_pred_flag = pps->weighted_pred_flag,
+    .weighted_bipred_idc = pps->weighted_bipred_idc,
+    .pic_init_qp_minus26 = pps->pic_init_qp_minus26,
+    .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
+    .deblocking_filter_control_present_flag = pps->deblocking_filter_control_present_flag,
+    .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
+    //.MbaffFrameFlag =
+    .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
+    .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
+    .pic_order_present_flag = pps->pic_order_present_flag,
+    .chroma_qp_index_offset = pps->chroma_qp_index_offset,
+    .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
+    .frame_num = picture->frame_num,
+    .CurrFieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
+    .fmo_aso_enable = 0, // not supported
+    .num_slice_groups_minus1 = static_cast<uint8_t>(pps->num_slice_groups_minus1),
+    .slice_group_map_type = pps->slice_group_map_type,
+    .pic_init_qs_minus26 = pps->pic_init_qp_minus26,
+    .slice_group_change_rate_minus1 = pps->slice_group_change_rate_minus1,
+    .pMb2SliceGroupMap = (vkpic->slice_group_map = get_slice_group_map (pps), vkpic->slice_group_map),
     // // DPB
     // VkParserH264DpbEntry dpb[16 + 1]; // List of reference frames within the DPB
   };
+
+  pic_list = gst_h264_dpb_get_pictures_all (dpb);
+  for (i = 0; i < pic_list->len; i++) {
+    GstH264Picture *picture = g_array_index (pic_list, GstH264Picture *, i);
+    auto vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+    h264->dpb[i] = (VkParserH264DpbEntry) {
+      .pPicBuf = vkpic->pic,
+      .FrameIdx = GST_H264_PICTURE_IS_LONG_TERM_REF(picture) ? picture->long_term_pic_num : picture->pic_num,
+      .is_long_term = GST_H264_PICTURE_IS_LONG_TERM_REF(picture),
+      .not_existing = picture->nonexisting,
+      .used_for_reference = GST_H264_PICTURE_IS_REF(picture),
+      .FieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
+    };
+  }
+
 
   return GST_FLOW_OK;
 }
