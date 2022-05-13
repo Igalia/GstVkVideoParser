@@ -20,11 +20,11 @@
 #ifndef __GST_H264_DECODER_H__
 #define __GST_H264_DECODER_H__
 
-#include <gst/codecs/codecs-prelude.h>
+#include "codecs-prelude.h"
 
 #include <gst/video/video.h>
 #include <gst/codecparsers/gsth264parser.h>
-#include <gst/codecs/gsth264picture.h>
+#include "gsth264picture.h"
 
 G_BEGIN_DECLS
 

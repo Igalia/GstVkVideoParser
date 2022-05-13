@@ -20,7 +20,7 @@
 #ifndef __GST_H264_PICTURE_H__
 #define __GST_H264_PICTURE_H__
 
-#include <gst/codecs/codecs-prelude.h>
+#include "codecs-prelude.h"
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/video/video.h>
 
