@@ -1286,7 +1286,6 @@ gst_h264_decoder_parse_slice (GstH264Decoder * self, GstH264NalUnit * nalu)
     if (!gst_h264_decoder_find_first_field_picture (self,
             &priv->current_slice, &first_field)) {
       GST_ERROR_OBJECT (self, "Couldn't find or determine first picture");
-      return GST_FLOW_ERROR;
     }
 
     if (first_field) {
@@ -1295,7 +1294,6 @@ gst_h264_decoder_parse_slice (GstH264Decoder * self, GstH264NalUnit * nalu)
 
       if (!picture) {
         GST_ERROR_OBJECT (self, "Couldn't duplicate the first field picture");
-        return GST_FLOW_ERROR;
       }
     } else {
       picture = gst_h264_picture_new ();
