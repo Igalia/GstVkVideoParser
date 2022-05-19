@@ -25,6 +25,31 @@
 #include <vk_video/vulkan_video_codecs_common.h>
 #include <vulkan/vulkan_beta.h>
 
+class PictureParameterSet : public VkParserVideoRefCountBase
+{
+public:
+    static PictureParameterSet* create() {
+        return new PictureParameterSet();
+    }
+
+    int32_t AddRef() final {
+        return ++m_refCount;
+    }
+
+    int32_t Release() final {
+        uint32_t ret = --m_refCount;
+        // Destroy the device if refcount reaches zero
+        if (ret == 0)
+            delete this;
+        return ret;
+    }
+
+private:
+    std::atomic<int32_t> m_refCount;
+
+    PictureParameterSet() : m_refCount(0) {}
+};
+
 class Picture : public VkPicIf {
 public:
     Picture() : m_refCount(0) {}
@@ -89,8 +114,11 @@ public:
         return true;
     }
 
-    bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase>&, uint64_t) final {
-        fprintf(stderr, "%s\n",__FUNCTION__);
+    bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase> &shared, uint64_t count) final {
+        VkSharedBaseObj<PictureParameterSet> paramset(PictureParameterSet::create());
+
+        fprintf(stderr, "%s: %" PRIu64 "\n", __FUNCTION__, count);
+        shared = paramset;
         return true;
     }
 
