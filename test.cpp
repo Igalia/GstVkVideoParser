@@ -119,6 +119,7 @@ static bool parse(FILE *stream)
     VkParserInitDecodeParameters params = {
          .interfaceVersion = VK_MAKE_VIDEO_STD_VERSION(0, 9, 1),
          .pClient = &client,
+        .bOutOfBandPictureParameters = true,
     };
     bool ret;
     unsigned char buf[BUFSIZ + 1];
