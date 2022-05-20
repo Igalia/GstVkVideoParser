@@ -1327,6 +1327,7 @@ static GstFlowReturn
 gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
 {
   GstFlowReturn ret = GST_FLOW_OK;
+  GstH264DecoderClass* klass = GST_H264_DECODER_GET_CLASS (self);
 
   GST_LOG_OBJECT (self, "Parsed nal type: %d, offset %d, size %d",
       nalu->type, nalu->offset, nalu->size);
@@ -1334,9 +1335,11 @@ gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
   switch (nalu->type) {
     case GST_H264_NAL_SPS:
       ret = gst_h264_decoder_parse_sps (self, nalu);
+      gst_printerrln ("update sps");
       break;
     case GST_H264_NAL_PPS:
       ret = gst_h264_decoder_parse_pps (self, nalu);
+      gst_printerrln ("update pps");
       break;
     case GST_H264_NAL_SLICE:
     case GST_H264_NAL_SLICE_DPA:
@@ -1347,6 +1350,8 @@ gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
       ret = gst_h264_decoder_parse_slice (self, nalu);
       break;
     default:
+      if (klass->unhandled_nalu)
+        klass->unhandled_nalu (self, nalu->data + nalu->offset, nalu->size);
       break;
   }
 

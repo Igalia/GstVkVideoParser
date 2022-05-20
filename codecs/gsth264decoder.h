@@ -234,6 +234,10 @@ struct _GstH264DecoderClass
   guint (*get_preferred_output_delay)   (GstH264Decoder * decoder,
                                          gboolean live);
 
+  void (*unhandled_nalu)                (GstH264Decoder * decoder,
+                                         const guint8 * data,
+                                         guint32 len);
+
   /*< private >*/
   gpointer padding[GST_PADDING_LARGE];
 };

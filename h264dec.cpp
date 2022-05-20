@@ -542,6 +542,15 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 }
 
 static void
+gst_h264_dec_unhandled_nalu (GstH264Decoder * decoder, const guint8 * data, guint32 size)
+{
+    GstH264Dec *self = GST_H264_DEC(decoder);
+
+    if (self->client)
+      self->client->UnhandledNALU(data, size);
+}
+
+static void
 gst_h264_dec_set_property(GObject * object, guint property_id, const GValue * value, GParamSpec *pspec)
 {
   GstH264Dec *self = GST_H264_DEC(object);
@@ -577,6 +586,7 @@ gst_h264_dec_class_init(GstH264DecClass * klass)
   h264decoder_class->start_picture = gst_h264_dec_start_picture;
   h264decoder_class->end_picture = gst_h264_dec_end_picture;
   h264decoder_class->new_field_picture = gst_h264_dec_new_field_picture;
+  h264decoder_class->unhandled_nalu = gst_h264_dec_unhandled_nalu;
 
   g_object_class_install_property(gobject_class, PROP_USER_DATA,
       g_param_spec_pointer("user-data", "user-data", "user-data", GParamFlags(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
