@@ -591,6 +591,7 @@ static GstFlowReturn
 gst_h264_decoder_parse_sps (GstH264Decoder * self, GstH264NalUnit * nalu)
 {
   GstH264DecoderPrivate *priv = self->priv;
+  GstH264DecoderClass* klass = GST_H264_DECODER_GET_CLASS (self);
   GstH264SPS sps;
   GstH264ParserResult pres;
   GstFlowReturn ret;
@@ -602,6 +603,9 @@ gst_h264_decoder_parse_sps (GstH264Decoder * self, GstH264NalUnit * nalu)
   }
 
   GST_LOG_OBJECT (self, "SPS parsed");
+
+  if (klass->update_picture_parameters)
+    klass->update_picture_parameters (self, GST_H264_NAL_SPS, &sps);
 
   ret = gst_h264_decoder_process_sps (self, &sps);
   if (ret != GST_FLOW_OK) {
@@ -620,18 +624,22 @@ gst_h264_decoder_parse_sps (GstH264Decoder * self, GstH264NalUnit * nalu)
 static GstFlowReturn
 gst_h264_decoder_parse_pps (GstH264Decoder * self, GstH264NalUnit * nalu)
 {
-  GstH264DecoderPrivate *priv = self->priv;
-  GstH264PPS pps;
-  GstH264ParserResult pres;
-  GstFlowReturn ret = GST_FLOW_OK;
+    GstH264DecoderClass* klass = GST_H264_DECODER_GET_CLASS(self);
+    GstH264DecoderPrivate* priv = self->priv;
+    GstH264PPS pps;
+    GstH264ParserResult pres;
+    GstFlowReturn ret = GST_FLOW_OK;
 
-  pres = gst_h264_parse_pps (priv->parser, nalu, &pps);
-  if (pres != GST_H264_PARSER_OK) {
-    GST_WARNING_OBJECT (self, "Failed to parse PPS, result %d", pres);
-    return GST_FLOW_ERROR;
+    pres = gst_h264_parse_pps(priv->parser, nalu, &pps);
+    if (pres != GST_H264_PARSER_OK) {
+        GST_WARNING_OBJECT(self, "Failed to parse PPS, result %d", pres);
+        return GST_FLOW_ERROR;
   }
 
   GST_LOG_OBJECT (self, "PPS parsed");
+
+  if (klass->update_picture_parameters)
+      klass->update_picture_parameters (self, GST_H264_NAL_PPS, &pps);
 
   if (pps.num_slice_groups_minus1 > 0) {
     GST_FIXME_OBJECT (self, "FMO is not supported");
@@ -1335,11 +1343,9 @@ gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
   switch (nalu->type) {
     case GST_H264_NAL_SPS:
       ret = gst_h264_decoder_parse_sps (self, nalu);
-      gst_printerrln ("update sps");
       break;
     case GST_H264_NAL_PPS:
       ret = gst_h264_decoder_parse_pps (self, nalu);
-      gst_printerrln ("update pps");
       break;
     case GST_H264_NAL_SLICE:
     case GST_H264_NAL_SLICE_DPA:

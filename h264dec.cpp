@@ -17,6 +17,9 @@
 
 #include "h264dec.h"
 
+#include <atomic>
+
+#include "base.h"
 #include "videoparser.h"
 #include "videoutils.h"
 
@@ -38,6 +41,7 @@ struct _GstH264Dec
 {
   GstH264Decoder parent;
   VkParserVideoDecodeClient *client;
+  gboolean oob_pic_params;
 
   gint max_dpb_size;
 };
@@ -59,6 +63,7 @@ struct VkPic
 
 enum {
   PROP_USER_DATA = 1,
+  PROP_OOB_PIC_PARAMS,
 };
 
 G_DEFINE_FINAL_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
@@ -544,20 +549,48 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 static void
 gst_h264_dec_unhandled_nalu (GstH264Decoder * decoder, const guint8 * data, guint32 size)
 {
-    GstH264Dec *self = GST_H264_DEC(decoder);
+  GstH264Dec *self = GST_H264_DEC(decoder);
 
-    if (self->client)
-      self->client->UnhandledNALU(data, size);
+  if (self->client)
+    self->client->UnhandledNALU(data, size);
 }
 
 static void
-gst_h264_dec_set_property(GObject * object, guint property_id, const GValue * value, GParamSpec *pspec)
+gst_h264_dec_update_picture_parameters (GstH264Decoder* decoder, GstH264NalUnitType type, const gpointer nalu)
+{
+  GstH264Dec* self = GST_H264_DEC(decoder);
+  VkPictureParameters params = {};
+  VkSharedBaseObj<VkParserVideoRefCountBase> shared;
+
+  switch (type) {
+    case GST_H264_NAL_SPS:
+      params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS;
+      break;
+    case GST_H264_NAL_PPS:
+      params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS;
+      break;
+    default:
+      break;
+  }
+
+  if (self->client) {
+    if (self->client->UpdatePictureParameters (&params, shared, 0)) {
+      // set shared to something
+    }
+  }
+}
+
+static void
+gst_h264_dec_set_property(GObject* object, guint property_id, const GValue* value, GParamSpec* pspec)
 {
   GstH264Dec *self = GST_H264_DEC(object);
 
   switch (property_id) {
     case PROP_USER_DATA:
       self->client = reinterpret_cast<VkParserVideoDecodeClient *>(g_value_get_pointer(value));
+      break;
+    case PROP_OOB_PIC_PARAMS:
+      self->oob_pic_params = g_value_get_boolean(value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
@@ -587,9 +620,13 @@ gst_h264_dec_class_init(GstH264DecClass * klass)
   h264decoder_class->end_picture = gst_h264_dec_end_picture;
   h264decoder_class->new_field_picture = gst_h264_dec_new_field_picture;
   h264decoder_class->unhandled_nalu = gst_h264_dec_unhandled_nalu;
+  h264decoder_class->update_picture_parameters = gst_h264_dec_update_picture_parameters;
 
   g_object_class_install_property(gobject_class, PROP_USER_DATA,
       g_param_spec_pointer("user-data", "user-data", "user-data", GParamFlags(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
+
+  g_object_class_install_property(gobject_class, PROP_OOB_PIC_PARAMS,
+      g_param_spec_boolean("oob-pic-params", "oob-pic-params", "oop-pic-params", FALSE, GParamFlags(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
 }
 
 static void

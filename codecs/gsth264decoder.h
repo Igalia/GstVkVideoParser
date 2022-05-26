@@ -238,6 +238,10 @@ struct _GstH264DecoderClass
                                          const guint8 * data,
                                          guint32 len);
 
+  void (*update_picture_parameters)     (GstH264Decoder* decoder,
+                                         GstH264NalUnitType type,
+                                         const gpointer nalu);
+
   /*< private >*/
   gpointer padding[GST_PADDING_LARGE];
 };

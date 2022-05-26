@@ -60,7 +60,7 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
 
-    m_parser = gst_video_parser_new(params->pClient, m_codec);
+    m_parser = gst_video_parser_new(params->pClient, m_codec, params->bOutOfBandPictureParameters);
 
     return VK_SUCCESS;
 }
