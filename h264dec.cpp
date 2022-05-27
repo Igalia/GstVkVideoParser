@@ -52,6 +52,10 @@ struct _GstH264Dec
     StdVideoH264PictureParameterSet pps;
     StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
     VkParserVideoRefCountBase *spsclient, *ppsclient;
+    int32_t offset_for_ref_frame[255];
+
+    GstH264SPS last_sps;
+    GstH264PPS last_pps;
   } curr;
 
   guint32 sps_update_count;
@@ -71,6 +75,7 @@ struct VkPic
   StdVideoH264PictureParameterSet pps;
   StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
   uint8_t *slice_group_map;
+  int32_t offset_for_ref_frame[255];
 };
 
 enum {
@@ -486,11 +491,11 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   GArray *pic_list;
   guint i;
 
-  if (self->sps_update_count == 0)
-    fill_sps (self, sps);
+  if (!self->oob_pic_params || self->sps_update_count == 0)
+      fill_sps(self, sps);
 
-  if (self->pps_update_count == 0)
-    fill_pps (self, pps);
+  if (!self->oob_pic_params || self->pps_update_count == 0)
+      fill_pps(self, pps);
 
   vkpic->data = (VkParserPictureData) {
     .PicWidthInMbs = sps->width / 16, // Coded Frame Size
@@ -543,7 +548,7 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
     .frame_num = picture->frame_num,
     .CurrFieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
-    .fmo_aso_enable = 0, // not supported
+    .fmo_aso_enable = pps->num_slice_groups_minus1 > 0,
     .num_slice_groups_minus1 = static_cast<uint8_t>(pps->num_slice_groups_minus1),
     .slice_group_map_type = pps->slice_group_map_type,
     .pic_init_qs_minus26 = pps->pic_init_qp_minus26,
@@ -579,35 +584,119 @@ gst_h264_dec_unhandled_nalu (GstH264Decoder * decoder, const guint8 * data, guin
     self->client->UnhandledNALU(data, size);
 }
 
+static bool
+sps_cmp (GstH264SPS * a, GstH264SPS * b)
+{
+#define CMP_FIELD(x) G_STMT_START { if (a->x != b->x) return false; } G_STMT_END
+  CMP_FIELD(id);
+
+  CMP_FIELD (profile_idc);
+  CMP_FIELD (constraint_set0_flag);
+  CMP_FIELD (constraint_set1_flag);
+  CMP_FIELD (constraint_set2_flag);
+  CMP_FIELD (constraint_set3_flag);
+  CMP_FIELD (constraint_set4_flag);
+  CMP_FIELD (constraint_set5_flag);
+  CMP_FIELD (level_idc);
+
+  CMP_FIELD (chroma_format_idc);
+  CMP_FIELD (separate_colour_plane_flag);
+  CMP_FIELD (bit_depth_luma_minus8);
+  CMP_FIELD (bit_depth_chroma_minus8);
+  CMP_FIELD (qpprime_y_zero_transform_bypass_flag);
+
+  CMP_FIELD (scaling_matrix_present_flag);
+  //guint8 scaling_lists_4x4[6][16];
+  //guint8 scaling_lists_8x8[6][64];
+
+  CMP_FIELD (log2_max_frame_num_minus4);
+  CMP_FIELD (pic_order_cnt_type);
+
+  CMP_FIELD (log2_max_pic_order_cnt_lsb_minus4);
+
+  CMP_FIELD (delta_pic_order_always_zero_flag);
+  CMP_FIELD (offset_for_non_ref_pic);
+  CMP_FIELD (offset_for_top_to_bottom_field);
+  CMP_FIELD (num_ref_frames_in_pic_order_cnt_cycle);
+  //gint32 offset_for_ref_frame[255];
+
+  CMP_FIELD (num_ref_frames);
+  CMP_FIELD (gaps_in_frame_num_value_allowed_flag);
+  CMP_FIELD (pic_width_in_mbs_minus1);
+  CMP_FIELD (pic_height_in_map_units_minus1);
+  CMP_FIELD (frame_mbs_only_flag);
+
+  CMP_FIELD (mb_adaptive_frame_field_flag);
+
+  CMP_FIELD (direct_8x8_inference_flag);
+
+  CMP_FIELD (frame_cropping_flag);
+
+  CMP_FIELD (frame_crop_left_offset);
+  CMP_FIELD (frame_crop_right_offset);
+  CMP_FIELD (frame_crop_top_offset);
+  CMP_FIELD (frame_crop_bottom_offset);
+
+  CMP_FIELD (vui_parameters_present_flag);
+  //GstH264VUIParams vui_parameters;
+
+  CMP_FIELD (chroma_array_type);
+  CMP_FIELD (max_frame_num);
+  CMP_FIELD (width);
+  CMP_FIELD (height);
+  CMP_FIELD (crop_rect_width);
+  CMP_FIELD (crop_rect_height);
+  CMP_FIELD (crop_rect_x);
+  CMP_FIELD (crop_rect_y);
+  CMP_FIELD (valid);
+
+  CMP_FIELD (extension_type);
+  //union {
+  //  GstH264SPSExtMVC mvc;
+  //} extension;
+
+  return true;
+#undef CMP_FIELD
+}
+
 static void
 gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitType type, const gpointer nalu)
 {
   GstH264Dec* self = GST_H264_DEC(decoder);
   VkPictureParameters params = {};
   VkSharedBaseObj<VkParserVideoRefCountBase> shared;
-  static guint64 count = 0;
 
   switch (type) {
-  case GST_H264_NAL_SPS:
+  case GST_H264_NAL_SPS:{
+    GstH264SPS* sps = static_cast<GstH264SPS*>(nalu);
+    if (!sps_cmp (&self->curr.last_sps, sps))
+      return;
     params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS;
-    fill_sps(self, static_cast<GstH264SPS*>(nalu));
+    self->curr.last_sps = *sps;
+    fill_sps(self, sps);
     params.pH264Sps = &self->curr.sps;
-    params.updateSequenceCount = ++self->sps_update_count;
+    params.updateSequenceCount = self->sps_update_count++;
     shared = self->curr.spsclient;
     break;
-  case GST_H264_NAL_PPS:
+  }
+  case GST_H264_NAL_PPS:{
+    GstH264PPS* pps = static_cast<GstH264PPS*>(nalu);
+    if (self->pps_update_count > 0 && self->curr.last_pps.id != pps->id)
+      return;
     params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS;
-    fill_pps(self, static_cast<GstH264PPS*>(nalu));
+    self->curr.last_pps = *pps;
+    fill_pps(self, pps);
     params.pH264Pps = &self->curr.pps;
-    params.updateSequenceCount = ++self->pps_update_count;
+    params.updateSequenceCount = self->pps_update_count++;
     shared = self->curr.ppsclient;
     break;
+  }
   default:
     return;
   }
 
   if (self->client) {
-    if (!self->client->UpdatePictureParameters(&params, shared, ++count)) {
+    if (!self->client->UpdatePictureParameters(&params, shared, params.updateSequenceCount)) {
       GST_ERROR_OBJECT (self, "Failed to update picture parameters");
     }
   }
