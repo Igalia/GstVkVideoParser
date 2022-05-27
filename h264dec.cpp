@@ -719,7 +719,6 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
   GstH264Dec* self = GST_H264_DEC(decoder);
   VkPictureParameters params;
   VkSharedBaseObj<VkParserVideoRefCountBase> shared;
-  VkH264Picture vkp = {};
 
   switch (type) {
   case GST_H264_NAL_SPS: {
@@ -727,13 +726,12 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
     if (sps_cmp(&self->last_sps, sps))
       return;
     self->last_sps = *sps;
-    fill_sps(sps, &vkp);
+    fill_sps(sps, &self->vkp);
     params = (VkPictureParameters) {
       .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS,
-      .pH264Sps = &vkp.sps,
+      .pH264Sps = &self->vkp.sps,
       .updateSequenceCount = self->sps_update_count++,
     };
-    shared = self->spsclient;
     break;
   }
   case GST_H264_NAL_PPS: {
@@ -741,13 +739,12 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
     if (pps_cmp(&self->last_pps, pps))
       return;
     self->last_pps = *pps;
-    fill_pps(pps, &vkp);
+    fill_pps(pps, &self->vkp);
     params = (VkPictureParameters) {
       .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS,
-      .pH264Pps = &vkp.pps,
+      .pH264Pps = &self->vkp.pps,
       .updateSequenceCount = self->pps_update_count++,
     };
-    shared = self->ppsclient;
     break;
   }
   default:
@@ -757,6 +754,23 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
   if (self->client) {
     if (!self->client->UpdatePictureParameters(&params, shared, params.updateSequenceCount)) {
       GST_ERROR_OBJECT (self, "Failed to update picture parameters");
+    } else {
+      switch (type) {
+      case GST_H264_NAL_SPS:
+        if (self->spsclient)
+          self->spsclient->Release();
+        self->spsclient = shared;
+        self->spsclient->AddRef();
+        break;
+      case GST_H264_NAL_PPS:
+        if (self->ppsclient)
+          self->ppsclient->Release();
+        self->ppsclient = shared;
+        self->ppsclient->AddRef();
+        break;
+      default:
+        break;
+      }
     }
   }
 }
