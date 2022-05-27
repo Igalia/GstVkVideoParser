@@ -36,6 +36,17 @@ static GstStaticPadTemplate sink_factory =
 static GstStaticPadTemplate src_factory =
     GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS, GST_STATIC_CAPS ("video/x-raw, format=(string)NV12"));
 
+typedef struct _VkH264Picture VkH264Picture;
+struct _VkH264Picture
+{
+  StdVideoH264HrdParameters hrd;
+  StdVideoH264SequenceParameterSetVui vui;
+  StdVideoH264SequenceParameterSet sps;
+  StdVideoH264PictureParameterSet pps;
+  StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
+  int32_t offset_for_ref_frame[255];
+};
+
 typedef struct _GstH264Dec GstH264Dec;
 struct _GstH264Dec
 {
@@ -45,18 +56,11 @@ struct _GstH264Dec
 
   gint max_dpb_size;
 
-  struct {
-    StdVideoH264HrdParameters hrd;
-    StdVideoH264SequenceParameterSetVui vui;
-    StdVideoH264SequenceParameterSet sps;
-    StdVideoH264PictureParameterSet pps;
-    StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
-    VkParserVideoRefCountBase *spsclient, *ppsclient;
-    int32_t offset_for_ref_frame[255];
+  GstH264SPS last_sps;
+  GstH264PPS last_pps;
+  VkH264Picture vkp;
 
-    GstH264SPS last_sps;
-    GstH264PPS last_pps;
-  } curr;
+  VkParserVideoRefCountBase *spsclient, *ppsclient;
 
   guint32 sps_update_count;
   guint32 pps_update_count;
@@ -68,14 +72,8 @@ struct VkPic
   VkParserPictureData data;
   GByteArray *bitstream;
   guint n_slices;
-
-  StdVideoH264HrdParameters hrd;
-  StdVideoH264SequenceParameterSetVui vui;
-  StdVideoH264SequenceParameterSet sps;
-  StdVideoH264PictureParameterSet pps;
-  StdVideoH264ScalingLists scaling_lists_sps, scaling_lists_pps;
-  uint8_t *slice_group_map;
-  int32_t offset_for_ref_frame[255];
+  VkH264Picture vkp;
+  uint8_t* slice_group_map;
 };
 
 enum {
@@ -123,13 +121,28 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
   GstH264Dec *self = GST_H264_DEC(decoder);
   GstVideoDecoder *dec = GST_VIDEO_DECODER(decoder);
   GstVideoCodecState *state;
-  VkParserSequenceInfo seqInfo = { };
+  VkParserSequenceInfo seqInfo;
   guint dar_n = 0, dar_d = 0;
 
-  seqInfo.eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
-  seqInfo.isSVC = profile_is_svc(decoder->input_state->caps);
-  seqInfo.frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info));
-  seqInfo.bProgSeq = sps->frame_mbs_only_flag;
+  seqInfo = (VkParserSequenceInfo) {
+    .eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
+    .isSVC = profile_is_svc(decoder->input_state->caps),
+    .frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info)),
+    .bProgSeq = sps->frame_mbs_only_flag,
+    .nCodedWidth = sps->width,
+    .nCodedHeight = sps->height,
+    .nMaxWidth = 0,
+    .nMaxHeight = 0,
+    .nChromaFormat = sps->chroma_format_idc, // Chroma Format (0=4:0:0, 1=4:2:0, 2=4:2:2, 3=4:4:4)
+    .uBitDepthLumaMinus8 = sps->bit_depth_luma_minus8, // Luma bit depth (0=8bit)
+    .uBitDepthChromaMinus8 = sps->bit_depth_chroma_minus8, // Chroma bit depth (0=8bit)
+    .cbSequenceHeader = 0, // Number of bytes in SequenceHeaderData
+    .nMinNumDecodeSurfaces = max_dpb_size + 1,
+    // .SequenceHeaderData[1024];
+    .pbSideData = nullptr,
+    .cbSideData = 0,
+  };
+
   if (sps->frame_cropping_flag) {
     seqInfo.nDisplayWidth = sps->crop_rect_width;
     seqInfo.nDisplayHeight = sps->crop_rect_height;
@@ -137,19 +150,13 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
     seqInfo.nDisplayWidth = sps->width;
     seqInfo.nDisplayHeight = sps->height;
   }
-  seqInfo.nCodedWidth = sps->width;
-  seqInfo.nCodedHeight = sps->height;
-  seqInfo.nMaxWidth = 0;
-  seqInfo.nMaxHeight = 0;
-  seqInfo.nChromaFormat = sps->chroma_format_idc;         // Chroma Format (0=4:0:0, 1=4:2:0, 2=4:2:2, 3=4:4:4)
-  seqInfo.uBitDepthLumaMinus8 = sps->bit_depth_luma_minus8; // Luma bit depth (0=8bit)
-  seqInfo.uBitDepthChromaMinus8 = sps->bit_depth_chroma_minus8; // Chroma bit depth (0=8bit)
+
   if (sps->vui_parameters_present_flag) {
-    seqInfo.uVideoFullRange = sps->vui_parameters.video_full_range_flag;       // 0=16-235, 1=0-255
+    seqInfo.uVideoFullRange = sps->vui_parameters.video_full_range_flag; // 0=16-235, 1=0-255
     if (sps->vui_parameters.nal_hrd_parameters_present_flag)
-         seqInfo.lBitrate = sps->vui_parameters.nal_hrd_parameters.bit_rate_scale;
+      seqInfo.lBitrate = sps->vui_parameters.nal_hrd_parameters.bit_rate_scale;
     else if (sps->vui_parameters.vcl_hrd_parameters_present_flag)
-         seqInfo.lBitrate = sps->vui_parameters.vcl_hrd_parameters.bit_rate_scale;
+      seqInfo.lBitrate = sps->vui_parameters.vcl_hrd_parameters.bit_rate_scale;
     seqInfo.lVideoFormat = sps->vui_parameters.video_format; // Video Format (VideoFormatXXX)
     seqInfo.lColorPrimaries = sps->vui_parameters.colour_primaries; // Colour Primaries (ColorPrimariesXXX)
     seqInfo.lTransferCharacteristics = sps->vui_parameters.transfer_characteristics;
@@ -163,12 +170,6 @@ gst_h264_dec_new_sequence(GstH264Decoder * decoder, const GstH264SPS * sps, gint
     seqInfo.lDARWidth = dar_n;
     seqInfo.lDARHeight = dar_d;
   }
-
-  seqInfo.cbSequenceHeader = 0; // Number of bytes in SequenceHeaderData
-  seqInfo.nMinNumDecodeSurfaces = max_dpb_size + 1;
-  // seqInfo.SequenceHeaderData[1024];
-  seqInfo.pbSideData = nullptr;
-  seqInfo.cbSideData = 0;
 
   if (self->client)
     self->max_dpb_size = self->client->BeginSequence (&seqInfo);
@@ -339,17 +340,22 @@ get_slice_group_map (GstH264PPS * pps)
 }
 
 static void
-fill_sps (GstH264Dec * self, GstH264SPS * sps)
+fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
 {
   GstH264VUIParams* vui = &sps->vui_parameters;
   GstH264HRDParams* hrd = NULL;
 
   if (sps->scaling_matrix_present_flag) {
-    self->curr.scaling_lists_sps.scaling_list_present_mask = 1;
-    self->curr.scaling_lists_sps.use_default_scaling_matrix_mask = 0;
+    vkp->scaling_lists_sps.scaling_list_present_mask = 1;
+    vkp->scaling_lists_sps.use_default_scaling_matrix_mask = 0;
 
-    memcpy(&self->curr.scaling_lists_sps.ScalingList4x4, &sps->scaling_lists_4x4, sizeof(self->curr.scaling_lists_sps.ScalingList4x4));
-    memcpy(&self->curr.scaling_lists_sps.ScalingList8x8, &sps->scaling_lists_8x8, sizeof(self->curr.scaling_lists_sps.ScalingList8x8));
+    memcpy(&vkp->scaling_lists_sps.ScalingList4x4, &sps->scaling_lists_4x4, sizeof(vkp->scaling_lists_sps.ScalingList4x4));
+    memcpy(&vkp->scaling_lists_sps.ScalingList8x8, &sps->scaling_lists_8x8, sizeof(vkp->scaling_lists_sps.ScalingList8x8));
+  }
+
+  if (sps->num_ref_frames_in_pic_order_cnt_cycle > 0) {
+    for (uint32_t i = 0; i < sps->num_ref_frames_in_pic_order_cnt_cycle; i++)
+      vkp->offset_for_ref_frame[i] = sps->offset_for_ref_frame[i];
   }
 
   if (vui->nal_hrd_parameters_present_flag)
@@ -358,7 +364,7 @@ fill_sps (GstH264Dec * self, GstH264SPS * sps)
     hrd = &vui->vcl_hrd_parameters;
 
   if (hrd) {
-    self->curr.hrd = (StdVideoH264HrdParameters) {
+    vkp->hrd = (StdVideoH264HrdParameters) {
       .cpb_cnt_minus1 = hrd->cpb_cnt_minus1,
       .bit_rate_scale = hrd->bit_rate_scale,
       .cpb_size_scale = hrd->cpb_size_scale,
@@ -368,11 +374,11 @@ fill_sps (GstH264Dec * self, GstH264SPS * sps)
       .time_offset_length = hrd->time_offset_length,
     };
 
-    memcpy(&self->curr.hrd.bit_rate_value_minus1, hrd->bit_rate_value_minus1, sizeof(self->curr.hrd.bit_rate_value_minus1));
-    memcpy(&self->curr.hrd.cpb_size_value_minus1, hrd->cpb_size_value_minus1, sizeof(self->curr.hrd.cpb_size_value_minus1));
+    memcpy(&vkp->hrd.bit_rate_value_minus1, hrd->bit_rate_value_minus1, sizeof(vkp->hrd.bit_rate_value_minus1));
+    memcpy(&vkp->hrd.cpb_size_value_minus1, hrd->cpb_size_value_minus1, sizeof(vkp->hrd.cpb_size_value_minus1));
   }
 
-  self->curr.vui = (StdVideoH264SequenceParameterSetVui) {
+  vkp->vui = (StdVideoH264SequenceParameterSetVui) {
     .flags = {
       .aspect_ratio_info_present_flag = vui->aspect_ratio_info_present_flag,
       .overscan_info_present_flag = vui->overscan_info_present_flag,
@@ -396,12 +402,12 @@ fill_sps (GstH264Dec * self, GstH264SPS * sps)
     .matrix_coefficients = vui->matrix_coefficients,
     .num_units_in_tick = vui->num_units_in_tick,
     .time_scale = vui->time_scale,
-    .pHrdParameters = hrd ? &self->curr.hrd : NULL,
+    .pHrdParameters = hrd ? &vkp->hrd : NULL,
     .max_num_reorder_frames = static_cast<uint8_t>(vui->num_reorder_frames),
     .max_dec_frame_buffering = static_cast<uint8_t>(vui->max_dec_frame_buffering),
   };
 
-  self->curr.sps = (StdVideoH264SequenceParameterSet) {
+  vkp->sps = (StdVideoH264SequenceParameterSet) {
     .flags = {
       .constraint_set0_flag = sps->constraint_set0_flag,
       .constraint_set1_flag = sps->constraint_set1_flag,
@@ -439,24 +445,24 @@ fill_sps (GstH264Dec * self, GstH264SPS * sps)
     .frame_crop_right_offset = sps->frame_crop_right_offset,
     .frame_crop_top_offset = sps->frame_crop_top_offset,
     .frame_crop_bottom_offset = sps->frame_crop_bottom_offset,
-    .pOffsetForRefFrame = sps->offset_for_ref_frame,
-    .pScalingLists = sps->scaling_matrix_present_flag ? &self->curr.scaling_lists_sps : NULL,
-    .pSequenceParameterSetVui = sps->vui_parameters_present_flag ? &self->curr.vui : NULL,
+    .pOffsetForRefFrame = (sps->num_ref_frames_in_pic_order_cnt_cycle > 0) ? vkp->offset_for_ref_frame : nullptr,
+    .pScalingLists = sps->scaling_matrix_present_flag ? &vkp->scaling_lists_sps : nullptr,
+    .pSequenceParameterSetVui = sps->vui_parameters_present_flag ? &vkp->vui : nullptr,
   };
 }
 
 static void
-fill_pps(GstH264Dec* self, GstH264PPS* pps)
+fill_pps (GstH264PPS* pps, VkH264Picture * vkp)
 {
   if (pps->pic_scaling_matrix_present_flag) {
-    self->curr.scaling_lists_pps.scaling_list_present_mask = 1;
-    self->curr.scaling_lists_pps.use_default_scaling_matrix_mask = 0;
+    vkp->scaling_lists_pps.scaling_list_present_mask = 1;
+    vkp->scaling_lists_pps.use_default_scaling_matrix_mask = 0;
 
-    memcpy(&self->curr.scaling_lists_pps.ScalingList4x4, &pps->scaling_lists_4x4, sizeof(self->curr.scaling_lists_pps.ScalingList4x4));
-    memcpy(&self->curr.scaling_lists_pps.ScalingList8x8, &pps->scaling_lists_8x8, sizeof(self->curr.scaling_lists_pps.ScalingList8x8));
+    memcpy(&vkp->scaling_lists_pps.ScalingList4x4, &pps->scaling_lists_4x4, sizeof(vkp->scaling_lists_pps.ScalingList4x4));
+    memcpy(&vkp->scaling_lists_pps.ScalingList8x8, &pps->scaling_lists_8x8, sizeof(vkp->scaling_lists_pps.ScalingList8x8));
   }
 
-  self->curr.pps = (StdVideoH264PictureParameterSet) {
+  vkp->pps = (StdVideoH264PictureParameterSet) {
     .flags = {
       .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
       .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
@@ -477,7 +483,7 @@ fill_pps(GstH264Dec* self, GstH264PPS* pps)
     .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
     .chroma_qp_index_offset = pps->chroma_qp_index_offset,
     .second_chroma_qp_index_offset = static_cast<int8_t>(pps->second_chroma_qp_index_offset),
-    .pScalingLists = pps->pic_scaling_matrix_present_flag ? &self->curr.scaling_lists_pps : NULL,
+    .pScalingLists = pps->pic_scaling_matrix_present_flag ? &vkp->scaling_lists_pps : NULL,
   };
 }
 
@@ -486,16 +492,18 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 {
   GstH264Dec *self = GST_H264_DEC(decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  VkH264Picture *vkp = &self->vkp;
   GstH264PPS *pps = slice->header.pps;
   GstH264SPS *sps = pps->sequence;
   GArray *pic_list;
   guint i;
 
-  if (!self->oob_pic_params || self->sps_update_count == 0)
-      fill_sps(self, sps);
-
-  if (!self->oob_pic_params || self->pps_update_count == 0)
-      fill_pps(self, pps);
+  if (!self->oob_pic_params
+      || (self->sps_update_count == 0 && self->sps_update_count == 0)) {
+      vkp = &vkpic->vkp;
+      fill_sps(sps, vkp);
+      fill_pps(pps, vkp);
+  }
 
   vkpic->data = (VkParserPictureData) {
     .PicWidthInMbs = sps->width / 16, // Coded Frame Size
@@ -507,10 +515,9 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     .progressive_frame = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_INTERLACED) == 0, // Frame is progressive
     .top_field_first = (picture->buffer_flags & GST_VIDEO_BUFFER_FLAG_TFF) != 0,
     .repeat_first_field = 0, // For 3:2 pulldown (number of additional fields,
-    // 2=frame doubling, 4=frame tripling)
+                             // 2=frame doubling, 4=frame tripling)
     .ref_pic_flag = picture->ref_pic, // Frame is a reference frame
-    //.intra_pic_flag, // Frame is entirely intra coded (no temporal
-    // dependencies)
+    //.intra_pic_flag, // Frame is entirely intra coded (no temporal dependencies)
     .chroma_format = sps->chroma_format_idc, // Chroma Format (should match sequence info)
     .picture_order_count = picture->pic_order_cnt, // picture order count (if known)
 
@@ -526,10 +533,10 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
 
   VkParserH264PictureData* h264 = &vkpic->data.CodecSpecific.h264;
   *h264 = (VkParserH264PictureData) {
-    .pStdSps = &self->curr.sps,
-    .pSpsClientObject = nullptr,
-    .pStdPps = &self->curr.pps,
-    .pPpsClientObject = nullptr,
+    .pStdSps = &vkp->sps,
+    .pSpsClientObject = self->spsclient,
+    .pStdPps = &vkp->pps,
+    .pPpsClientObject = self->ppsclient,
     .pic_parameter_set_id = static_cast<uint8_t>(pps->id),          // PPS ID
     .seq_parameter_set_id = static_cast<uint8_t>(pps->sequence->id),          // SPS ID
     .num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_active_minus1,
@@ -659,36 +666,88 @@ sps_cmp (GstH264SPS * a, GstH264SPS * b)
 #undef CMP_FIELD
 }
 
+static bool
+pps_cmp (GstH264PPS * a, GstH264PPS * b)
+{
+#define CMP_FIELD(x)  G_STMT_START { if (a->x != b->x) return false;  }  G_STMT_END
+  CMP_FIELD (id);
+
+  //GstH264SPS *sequence;
+
+  CMP_FIELD (entropy_coding_mode_flag);
+  CMP_FIELD (pic_order_present_flag);
+
+  CMP_FIELD (num_slice_groups_minus1);
+
+  CMP_FIELD (slice_group_map_type);
+  // guint32 run_length_minus1[8];
+  // guint32 top_left[8];
+  // guint32 bottom_right[8];
+  CMP_FIELD (slice_group_change_direction_flag);
+  CMP_FIELD (slice_group_change_rate_minus1);
+  CMP_FIELD (pic_size_in_map_units_minus1);
+  // guint8 *slice_group_id;
+
+  CMP_FIELD (num_ref_idx_l0_active_minus1);
+  CMP_FIELD (num_ref_idx_l1_active_minus1);
+  CMP_FIELD (weighted_pred_flag);
+  CMP_FIELD (weighted_bipred_idc);
+  CMP_FIELD (pic_init_qp_minus26);
+  CMP_FIELD (pic_init_qs_minus26);
+  CMP_FIELD (chroma_qp_index_offset);
+  CMP_FIELD (deblocking_filter_control_present_flag);
+  CMP_FIELD (constrained_intra_pred_flag);
+  CMP_FIELD (redundant_pic_cnt_present_flag);
+
+  CMP_FIELD (transform_8x8_mode_flag);
+
+  // guint8 scaling_lists_4x4[6][16];
+  // guint8 scaling_lists_8x8[6][64];
+
+  CMP_FIELD (second_chroma_qp_index_offset);
+  CMP_FIELD (valid);
+
+  CMP_FIELD (pic_scaling_matrix_present_flag);
+
+  return true;
+#undef CMP_FIELD
+}
+
 static void
 gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitType type, const gpointer nalu)
 {
   GstH264Dec* self = GST_H264_DEC(decoder);
-  VkPictureParameters params = {};
+  VkPictureParameters params;
   VkSharedBaseObj<VkParserVideoRefCountBase> shared;
+  VkH264Picture vkp = {};
 
   switch (type) {
-  case GST_H264_NAL_SPS:{
+  case GST_H264_NAL_SPS: {
     GstH264SPS* sps = static_cast<GstH264SPS*>(nalu);
-    if (!sps_cmp (&self->curr.last_sps, sps))
+    if (sps_cmp(&self->last_sps, sps))
       return;
-    params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS;
-    self->curr.last_sps = *sps;
-    fill_sps(self, sps);
-    params.pH264Sps = &self->curr.sps;
-    params.updateSequenceCount = self->sps_update_count++;
-    shared = self->curr.spsclient;
+    self->last_sps = *sps;
+    fill_sps(sps, &vkp);
+    params = (VkPictureParameters) {
+      .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS,
+      .pH264Sps = &vkp.sps,
+      .updateSequenceCount = self->sps_update_count++,
+    };
+    shared = self->spsclient;
     break;
   }
-  case GST_H264_NAL_PPS:{
+  case GST_H264_NAL_PPS: {
     GstH264PPS* pps = static_cast<GstH264PPS*>(nalu);
-    if (self->pps_update_count > 0 && self->curr.last_pps.id != pps->id)
+    if (pps_cmp(&self->last_pps, pps))
       return;
-    params.updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS;
-    self->curr.last_pps = *pps;
-    fill_pps(self, pps);
-    params.pH264Pps = &self->curr.pps;
-    params.updateSequenceCount = self->pps_update_count++;
-    shared = self->curr.ppsclient;
+    self->last_pps = *pps;
+    fill_pps(pps, &vkp);
+    params = (VkPictureParameters) {
+      .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS,
+      .pH264Pps = &vkp.pps,
+      .updateSequenceCount = self->pps_update_count++,
+    };
+    shared = self->ppsclient;
     break;
   }
   default:
