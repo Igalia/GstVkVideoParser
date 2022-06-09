@@ -29,6 +29,7 @@ struct _GstVideoParser
   gpointer user_data;
   VkVideoCodecOperationFlagBitsKHR codec;
   gboolean oob_pic_params;
+  GstBus *bus;
 };
 
 enum {
@@ -113,14 +114,14 @@ static void
 process_messages (GstVideoParser * self)
 {
   GstMessage *msg;
-  GstBus *bus;
-
-  bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
+  
+  if (!self->bus)
+    self->bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
 
   while (TRUE) {
-    msg = gst_bus_pop (bus);
+    msg = gst_bus_timed_pop (self->bus, 0.1 * GST_SECOND);
     if (!msg)
-      break;
+      return;
 
     GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
 
@@ -163,9 +164,9 @@ process_messages (GstVideoParser * self)
       default:
         break;
     }
-  }
 
-  gst_object_unref (bus);
+    gst_message_unref (msg);
+  }
 }
 
 static void
@@ -178,7 +179,10 @@ gst_video_parser_dispose (GObject* object)
   if (ret == GST_STATE_CHANGE_FAILURE)
     GST_WARNING_OBJECT (self, "Failed to change to NULL state");
 
+  gst_clear_object (&self->bus);
   gst_clear_object (&self->pipeline);
+
+  G_OBJECT_CLASS (gst_video_parser_parent_class)->dispose (object);
 }
 
 static void

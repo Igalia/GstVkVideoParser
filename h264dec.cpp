@@ -578,6 +578,7 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
       .FieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
     };
   }
+  g_array_unref (pic_list);
 
   return GST_FLOW_OK;
 }
@@ -776,6 +777,19 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
 }
 
 static void
+gst_h264_dec_dispose (GObject * object)
+{
+  GstH264Dec* self = GST_H264_DEC(object);
+
+  if (self->spsclient)
+    self->spsclient->Release();
+  if (self->ppsclient)
+      self->ppsclient->Release();
+
+  G_OBJECT_CLASS (parent_class)->dispose(object);
+}
+
+static void
 gst_h264_dec_set_property(GObject * object, guint property_id, const GValue* value, GParamSpec* pspec)
 {
   GstH264Dec* self = GST_H264_DEC(object);
@@ -805,6 +819,7 @@ gst_h264_dec_class_init(GstH264DecClass * klass)
   gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&sink_factory));
   gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&src_factory));
 
+  gobject_class->dispose = gst_h264_dec_dispose;
   gobject_class->set_property = gst_h264_dec_set_property;
 
   h264decoder_class->new_sequence = gst_h264_dec_new_sequence;
