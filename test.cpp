@@ -115,10 +115,8 @@ public:
     }
 
     bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase> &shared, uint64_t count) final {
-        VkSharedBaseObj<PictureParameterSet> paramset(PictureParameterSet::create());
-
         fprintf(stderr, "%s: %" PRIu64 "\n", __FUNCTION__, count);
-        shared = paramset;
+        shared = PictureParameterSet::create();
         return true;
     }
 

@@ -32,97 +32,97 @@ template<class VkBaseObjType>
 class VkSharedBaseObj
 {
 public:
-    VkSharedBaseObj<VkBaseObjType>& Reset(VkBaseObjType* const newObjectPtr)
-    {
-	if (newObjectPtr != m_sharedObject) {
-	    int refCount;
+  VkSharedBaseObj<VkBaseObjType>& Reset(VkBaseObjType* const newObjectPtr)
+  {
+    if (newObjectPtr != m_sharedObject) {
+      int refCount;
 	    if (m_sharedObject != nullptr) {
-		refCount = m_sharedObject->Release();
-		assert (refCount >= 0);
+        refCount = m_sharedObject->Release();
+        assert (refCount >= 0);
 	    }
 	    m_sharedObject = newObjectPtr;
 	    if (newObjectPtr != nullptr) {
-		refCount = newObjectPtr->AddRef();
-		assert (refCount > 0);
+        refCount = newObjectPtr->AddRef();
+        assert (refCount > 0);
 	    }
-	}
-	return *this;
     }
+    return *this;
+  }
 
-    // Constructors increment the refcount of the provided object if non-nullptr
-    explicit VkSharedBaseObj(VkBaseObjType* const newObjectPtr = nullptr)
-	: m_sharedObject(nullptr)
-    {
-	Reset(newObjectPtr);
-    }
+  // Constructors increment the refcount of the provided object if non-nullptr
+  explicit VkSharedBaseObj(VkBaseObjType* const newObjectPtr = nullptr)
+    : m_sharedObject(nullptr)
+  {
+    Reset(newObjectPtr);
+  }
 
-    VkSharedBaseObj(const VkSharedBaseObj<VkBaseObjType>& newObject)
-	: m_sharedObject(nullptr)
-    {
-	Reset(newObject.Get());
-    }
+  VkSharedBaseObj(const VkSharedBaseObj<VkBaseObjType>& newObject)
+    : m_sharedObject(nullptr)
+  {
+    Reset(newObject.Get());
+  }
 
-    ~VkSharedBaseObj() { Reset(nullptr); }
+  ~VkSharedBaseObj() { Reset(nullptr); }
 
-    // Assignment from another smart pointer maps to raw pointer assignment
-    VkSharedBaseObj<VkBaseObjType>& operator=(const VkSharedBaseObj<VkBaseObjType>& sharedObject)
-    {
-	return Reset(sharedObject.Get());
-    }
+  // Assignment from another smart pointer maps to raw pointer assignment
+  VkSharedBaseObj<VkBaseObjType>& operator=(const VkSharedBaseObj<VkBaseObjType>& sharedObject)
+  {
+    return Reset(sharedObject.Get());
+  }
 
-    VkSharedBaseObj<VkBaseObjType>& operator=(VkBaseObjType* const newObjectPtr)
-    {
-	return Reset(newObjectPtr);
-    }
+  VkSharedBaseObj<VkBaseObjType>& operator=(VkBaseObjType* const newObjectPtr)
+  {
+    return Reset(newObjectPtr);
+  }
 
-    template <class VkBaseObjType2> const VkSharedBaseObj<VkBaseObjType>& operator=(const VkSharedBaseObj<VkBaseObjType2>& otherSharedObject)
-    {
-	return Reset(otherSharedObject.Get());
-    }
+  template <class VkBaseObjType2> const VkSharedBaseObj<VkBaseObjType>& operator=(const VkSharedBaseObj<VkBaseObjType2>& otherSharedObject)
+  {
+    return Reset(otherSharedObject.Get());
+  }
 
-    // Comparison operators can be used with any compatible types
-    inline bool operator==(const VkSharedBaseObj<VkBaseObjType>& otherObject)
-    {
-	return (this->Get() == otherObject.Get());
-    }
+  // Comparison operators can be used with any compatible types
+  inline bool operator==(const VkSharedBaseObj<VkBaseObjType>& otherObject)
+  {
+    return (this->Get() == otherObject.Get());
+  }
 
-    inline bool operator!=(const VkSharedBaseObj<VkBaseObjType>& otherObject)
-    {
-	return !(*this == otherObject);
-    }
+  inline bool operator!=(const VkSharedBaseObj<VkBaseObjType>& otherObject)
+  {
+    return !(*this == otherObject);
+  }
 
-    bool operator!() const { return m_sharedObject == nullptr; }
+  bool operator!() const { return m_sharedObject == nullptr; }
 
-    // Exchange
-    void Swap(VkSharedBaseObj<VkBaseObjType>& sharedObject)
-    {
-	VkSharedBaseObj<VkBaseObjType> tmp(m_sharedObject);
-	m_sharedObject = sharedObject.m_sharedObject;
-	sharedObject.m_sharedObject = tmp;
-    }
+  // Exchange
+  void Swap(VkSharedBaseObj<VkBaseObjType>& sharedObject)
+  {
+    VkSharedBaseObj<VkBaseObjType> tmp(m_sharedObject);
+    m_sharedObject = sharedObject.m_sharedObject;
+    sharedObject.m_sharedObject = tmp;
+  }
 
-    // Non ref-counted access to the underlying object
-    VkBaseObjType* Get(void) const
-    {
-	return m_sharedObject;
-    }
+  // Non ref-counted access to the underlying object
+  VkBaseObjType* Get(void) const
+  {
+    return m_sharedObject;
+  }
 
-    // Cast to a raw object pointer
-    operator VkBaseObjType*() const
-    {
-	return m_sharedObject;
-    }
+  // Cast to a raw object pointer
+  operator VkBaseObjType*() const
+  {
+    return m_sharedObject;
+  }
 
-    VkBaseObjType* operator->() const
-    {
-	return m_sharedObject;
-    }
+  VkBaseObjType* operator->() const
+  {
+    return m_sharedObject;
+  }
 
-    VkBaseObjType& operator*() const
-    {
-	return *m_sharedObject;
-    }
+  VkBaseObjType& operator*() const
+  {
+    return *m_sharedObject;
+  }
 
 private:
-    VkBaseObjType* m_sharedObject;
+  VkBaseObjType* m_sharedObject;
 };

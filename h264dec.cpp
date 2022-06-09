@@ -60,7 +60,7 @@ struct _GstH264Dec
   GstH264PPS last_pps;
   VkH264Picture vkp;
 
-  VkParserVideoRefCountBase *spsclient, *ppsclient;
+  VkSharedBaseObj<VkParserVideoRefCountBase> spsclient, ppsclient;
 
   guint32 sps_update_count;
   guint32 pps_update_count;
@@ -719,7 +719,6 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
 {
   GstH264Dec* self = GST_H264_DEC(decoder);
   VkPictureParameters params;
-  VkSharedBaseObj<VkParserVideoRefCountBase> shared;
 
   switch (type) {
   case GST_H264_NAL_SPS: {
@@ -733,6 +732,10 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
       .pH264Sps = &self->vkp.sps,
       .updateSequenceCount = self->sps_update_count++,
     };
+    if (self->client) {
+      if (!self->client->UpdatePictureParameters(&params, self->spsclient, params.updateSequenceCount))
+        GST_ERROR_OBJECT(self, "Failed to update sequence parameters");
+    }
     break;
   }
   case GST_H264_NAL_PPS: {
@@ -746,33 +749,14 @@ gst_h264_dec_update_picture_parameters(GstH264Decoder * decoder, GstH264NalUnitT
       .pH264Pps = &self->vkp.pps,
       .updateSequenceCount = self->pps_update_count++,
     };
+    if (self->client) {
+      if (!self->client->UpdatePictureParameters(&params, self->ppsclient, params.updateSequenceCount))
+        GST_ERROR_OBJECT(self, "Failed to update picture parameters");
+    }
     break;
   }
   default:
-    return;
-  }
-
-  if (self->client) {
-    if (!self->client->UpdatePictureParameters(&params, shared, params.updateSequenceCount)) {
-      GST_ERROR_OBJECT (self, "Failed to update picture parameters");
-    } else {
-      switch (type) {
-      case GST_H264_NAL_SPS:
-        if (self->spsclient)
-          self->spsclient->Release();
-        self->spsclient = shared;
-        self->spsclient->AddRef();
-        break;
-      case GST_H264_NAL_PPS:
-        if (self->ppsclient)
-          self->ppsclient->Release();
-        self->ppsclient = shared;
-        self->ppsclient->AddRef();
-        break;
-      default:
-        break;
-      }
-    }
+    break;
   }
 }
 
@@ -784,7 +768,7 @@ gst_h264_dec_dispose (GObject * object)
   if (self->spsclient)
     self->spsclient->Release();
   if (self->ppsclient)
-      self->ppsclient->Release();
+    self->ppsclient->Release();
 
   G_OBJECT_CLASS (parent_class)->dispose(object);
 }
