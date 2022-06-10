@@ -111,17 +111,23 @@ bail:
 }
 
 static void
-process_messages (GstVideoParser * self)
+process_messages (GstVideoParser * self, gboolean wait_for_eos)
 {
   GstMessage *msg;
-  
+  GstClockTime timeout;
+
   if (!self->bus)
     self->bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
 
-  while (TRUE) {
-    msg = gst_bus_timed_pop (self->bus, 0.1 * GST_SECOND);
+  if (wait_for_eos)
+    timeout = GST_CLOCK_TIME_NONE;
+  else
+    timeout = 1 * GST_MSECOND;
+
+  while (!g_atomic_int_get (&self->need_data) || wait_for_eos) {
+    msg = gst_bus_timed_pop (self->bus, timeout);
     if (!msg)
-      return;
+      continue;
 
     GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
 
@@ -138,12 +144,15 @@ process_messages (GstVideoParser * self)
         GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (self->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "videoparse.error");
 
         self->got_error = TRUE;
-        break;
+        gst_message_unref (msg);
+        return;
       }
 
     case GST_MESSAGE_EOS:
         self->got_eos = TRUE;
-        break;
+        g_atomic_int_set(&self->need_data, FALSE);
+        gst_message_unref (msg);
+        return;
 
       case GST_MESSAGE_STATE_CHANGED:
         if (GST_MESSAGE_SRC(msg) == GST_OBJECT_CAST (self->pipeline)) {
@@ -285,6 +294,7 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
 static void
 gst_video_parser_init (GstVideoParser * self)
 {
+  self->need_data = TRUE;
 }
 
 GstVideoParser *
@@ -327,14 +337,12 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
   if (ret != GST_FLOW_OK && ret != GST_FLOW_EOS)
     GST_WARNING_OBJECT (self, "Couldn't push buffer: %s", gst_flow_get_name (ret));
 
-  while (!g_atomic_int_get (&self->need_data)) {
-    process_messages (self);
+  process_messages (self, FALSE);
 
-    if (self->got_error)
-      return GST_FLOW_ERROR;
-    if (self->got_eos)
-      return GST_FLOW_EOS;
-  }
+  if (self->got_error)
+    return GST_FLOW_ERROR;
+  if (self->got_eos)
+    return GST_FLOW_EOS;
 
   return ret;
 }
@@ -357,13 +365,11 @@ gst_video_parser_eos (GstVideoParser * self)
     return ret;
   }
 
-  while (!self->got_eos) {
-    process_messages (self);
-    if (self->got_error)
-      return GST_FLOW_ERROR;
-    if (self->got_eos)
-      ret = GST_FLOW_EOS;
-  }
+  process_messages (self, TRUE);
+  if (self->got_error)
+    return GST_FLOW_ERROR;
+  if (self->got_eos)
+    ret = GST_FLOW_EOS;
 
   gst_video_parser_reset (self);
 
