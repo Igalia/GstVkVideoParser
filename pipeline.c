@@ -44,6 +44,9 @@ GST_DEBUG_CATEGORY(gst_video_parser_debug);
 G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT,
     GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug, "videoparser", 0, "Video Parser"))
 
+#include <sys/syscall.h>
+#include <unistd.h>
+
 static void
 on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
 {
@@ -54,6 +57,8 @@ on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
   GstPad *decoder_pad, *sink_pad;
   GstPadLinkReturn ret;
   const char *name;
+
+  gst_printerr("[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
   GST_PAD_STREAM_LOCK (new_pad);
   if (!gst_pad_is_active (new_pad))

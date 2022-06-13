@@ -25,6 +25,9 @@
 #include <vk_video/vulkan_video_codecs_common.h>
 #include <vulkan/vulkan_beta.h>
 
+#include <unistd.h>
+#include <sys/syscall.h>
+
 class PictureParameterSet : public VkParserVideoRefCountBase
 {
 public:
@@ -82,7 +85,7 @@ public:
     int32_t BeginSequence(const VkParserSequenceInfo *info) final {
         int32_t max = 16, conf = 1;
 
-        fprintf(stderr, "%s\n", __FUNCTION__);
+        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
         if (info->eCodec == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_EXT)
             max++;
@@ -96,7 +99,7 @@ public:
     }
 
     bool AllocPictureBuffer(VkPicIf **pic) final {
-        fprintf(stderr, "%s\n",__FUNCTION__);
+        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
         for (auto &apic : m_dpb) {
             if (apic.isAvailable()) {
@@ -110,18 +113,19 @@ public:
     }
 
     bool DecodePicture(VkParserPictureData *pic) final {
-        fprintf(stderr, "%s\n",__FUNCTION__);
+        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         return true;
     }
 
     bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase> &shared, uint64_t count) final {
-        fprintf(stderr, "%s: %" PRIu64 "\n", __FUNCTION__, count);
+        //fprintf(stderr, "%s: %" PRIu64 "\n", __FUNCTION__, count);
+        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         shared = PictureParameterSet::create();
         return true;
     }
 
     bool DisplayPicture(VkPicIf *pic, int64_t ts) final {
-        fprintf(stderr, "%s\n",__FUNCTION__);
+        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         return true;
     }
 
@@ -152,6 +156,8 @@ static bool parse(FILE *stream)
     size_t read;
     int32_t parsed;
     VkParserBitstreamPacket pkt;
+
+    fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
     ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType) printf, 50);
     assert(ret);
