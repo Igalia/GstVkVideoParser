@@ -70,8 +70,7 @@ struct VkPic
 {
   VkPicIf *pic;
   VkParserPictureData data;
-  GstMapInfo map;
-  GstBuffer *in_buf;
+  GByteArray *bitstream;
   VkH264Picture vkp;
   uint8_t* slice_group_map;
 };
@@ -91,6 +90,7 @@ vk_pic_new (VkPicIf *pic)
   VkPic *vkpic = g_new0(struct VkPic, 1);
 
   vkpic->pic = pic;
+  vkpic->bitstream = g_byte_array_new ();
   return vkpic;
 }
 
@@ -100,6 +100,7 @@ vk_pic_free (gpointer data)
   VkPic *vkpic = static_cast<VkPic *>(data);
 
   vkpic->pic->Release();
+  g_byte_array_unref (vkpic->bitstream);
   g_free (vkpic->slice_group_map);
   g_free (vkpic);
 }
@@ -186,6 +187,7 @@ gst_h264_dec_decode_slice(GstH264Decoder * decoder, GstH264Picture * picture, Gs
   VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
 
   vkpic->data.nNumSlices++;
+  vkpic->bitstream = g_byte_array_append (vkpic->bitstream, slice->nalu.data, slice->nalu.size);
 
   return GST_FLOW_OK;
 }
@@ -205,7 +207,6 @@ gst_h264_dec_new_picture(GstH264Decoder * decoder, GstVideoCodecFrame * frame, G
   vkpic = vk_pic_new(pic);
   gst_h264_picture_set_user_data(picture, vkpic, vk_pic_free);
 
-  vkpic->in_buf = gst_buffer_ref (frame->input_buffer);
   frame->output_buffer = gst_buffer_new();
 
   return GST_FLOW_OK;
@@ -251,29 +252,23 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 {
   GstH264Dec *self = GST_H264_DEC(decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  gsize len;
   uint32_t *slice_offsets;
-  GstMapInfo map;
-  GstFlowReturn ret = GST_FLOW_OK;
 
-  if (!gst_buffer_map (vkpic->in_buf, &map, GST_MAP_READ))
-    return GST_FLOW_ERROR;
-
-  slice_offsets = static_cast<uint32_t *>(g_malloc0 (vkpic->data.nNumSlices));
+  vkpic->data.pBitstreamData = g_byte_array_steal (vkpic->bitstream, &len);
+  vkpic->data.nBitstreamDataLen = static_cast<int32_t>(len);
+  slice_offsets = static_cast<uint32_t*>(g_malloc0(vkpic->data.nNumSlices));
   vkpic->data.pSliceDataOffsets = slice_offsets;
-
-  vkpic->data.pBitstreamData = map.data;
-  vkpic->data.nBitstreamDataLen = map.size;
 
   if (self->client) {
     if (!self->client->DecodePicture(&vkpic->data))
-      ret = GST_FLOW_ERROR;
+      return GST_FLOW_ERROR;
   }
 
-  gst_buffer_unmap(vkpic->in_buf, &map);
-  gst_clear_buffer(&vkpic->in_buf);
+  g_free (vkpic->data.pBitstreamData);
   g_free (slice_offsets);
 
-  return ret;
+  return GST_FLOW_OK;
 }
 
 static uint8_t *
