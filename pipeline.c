@@ -180,6 +180,7 @@ gst_video_parser_constructed (GObject * object)
 
   sink = gst_element_factory_make ("fakesink", NULL);
   g_assert (sink);
+  g_object_set (sink, "async", FALSE, "sync", FALSE, NULL);
 
   self->pipeline = gst_pipeline_new ("videoparse");
   gst_bin_add_many (GST_BIN (self->pipeline), self->appsrc, parser, decoder,
