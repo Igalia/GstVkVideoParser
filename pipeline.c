@@ -27,7 +27,7 @@ struct _GstVideoParser
   gpointer user_data;
   VkVideoCodecOperationFlagBitsKHR codec;
   gboolean oob_pic_params;
-  GstHarness *parser, *decoder;
+  GstHarness *parser;
 };
 
 enum {
@@ -59,9 +59,9 @@ static void
 gst_video_parser_constructed (GObject * object)
 {
   GstVideoParser *self = GST_VIDEO_PARSER (object);
-  GstElement *decoder;
-  GstHarness *sink;
+  GstElement *bin, *decoder, *parser, *sink;
   const char *parser_name = NULL;
+  GstPad *pad;
 
   if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
     parser_name = "h264parse";
@@ -72,17 +72,30 @@ gst_video_parser_constructed (GObject * object)
     g_assert (FALSE);
   }
 
-  self->parser = gst_harness_new (parser_name);
-  sink = gst_harness_new_with_element (decoder, "sink", "src");
+  parser = gst_element_factory_make (parser_name, NULL);
+  sink = gst_element_factory_make ("fakesink", NULL);
+  g_object_set (sink, "async", FALSE, "sync", FALSE, NULL);
+
+  bin = gst_bin_new (NULL);
+  gst_bin_add_many (GST_BIN (bin), parser, decoder, sink, NULL);
+
+  if (!gst_element_link_many (parser, decoder, sink, NULL))
+    GST_WARNING_OBJECT (self, "Failed to link element");
+
+  if ((pad = gst_bin_find_unlinked_pad (GST_BIN (bin), GST_PAD_SINK)) != NULL) {
+    gst_element_add_pad (GST_ELEMENT (bin), gst_ghost_pad_new ("sink", pad));
+    gst_object_unref (pad);
+  }
+
+  self->parser = gst_harness_new_with_element (bin, "sink", NULL);
+  gst_object_unref (bin);
 
   gst_harness_set_live (self->parser, FALSE);
-  gst_harness_add_sink_harness (self->parser, sink);
-  gst_harness_set_drop_buffers (sink, TRUE);
-  //gst_harness_set_blocking_push_mode (self->parser);
 
-  gst_harness_set_caps_str (self->parser,
-      "video/x-h264,parsed=false",
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=true");
+  gst_harness_set_src_caps_str (self->parser,
+      "video/x-h264,stream-format=byte-stream");
+
+  gst_harness_play (self->parser);
 }
 
 static void
@@ -149,7 +162,6 @@ gst_video_parser_new (gpointer user_data,
 GstFlowReturn
 gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
 {
-  GstBuffer *buf;
   GstFlowReturn ret;
 
   GST_DEBUG_OBJECT (self, "Pushing buffer: %" GST_PTR_FORMAT, buffer);
@@ -160,27 +172,16 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
     return ret;
   }
 
-  while ((buf = gst_harness_try_pull (self->parser))) {
-    GST_DEBUG_OBJECT (self, "Pushing buffer to decoder: %" GST_PTR_FORMAT, buf);
-    ret = gst_harness_push (self->parser->sink_harness, buf);
-    if (ret != GST_FLOW_OK && ret != GST_FLOW_EOS) {
-      GST_WARNING_OBJECT (self, "Couldn't push buffer: %s", gst_flow_get_name (ret));
-      return ret;
-    }
-  }
-
   return ret;
 }
 
 GstFlowReturn
 gst_video_parser_eos (GstVideoParser * self)
 {
-  GstBuffer *buffer = NULL;
-
   GST_DEBUG_OBJECT (self, "Pushing EOS");
 
   if (!gst_harness_push_event (self->parser, gst_event_new_eos ()))
     return GST_FLOW_ERROR;
 
-  return GST_FLOW_OK;
+  return GST_FLOW_EOS;
 }
