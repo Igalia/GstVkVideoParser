@@ -19,8 +19,8 @@ videoparser = shared_library(
   c_args: '-DGST_USE_UNSTABLE_API',
   dependencies: [
     dependency('gstreamer-1.0', method: 'pkg-config'),
+    dependency('gstreamer-check-1.0', method: 'pkg-config'),
     dependency('gstreamer-codecparsers-1.0', method: 'pkg-config'),
-    dependency('gstreamer-app-1.0', method: 'pkg-config'),
     dependency('gstreamer-video-1.0', method: 'pkg-config'),
   ],
 )
