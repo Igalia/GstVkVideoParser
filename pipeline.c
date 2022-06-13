@@ -48,74 +48,6 @@ G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT
 #include <unistd.h>
 
 static void
-on_pad_added (GstElement* parsebin, GstPad* new_pad, gpointer user_data)
-{
-  GstVideoParser *self = GST_VIDEO_PARSER (user_data);
-  GstCaps *caps;
-  GstStructure *st;
-  GstElement *decoder, *sink;
-  GstPad *decoder_pad, *sink_pad;
-  GstPadLinkReturn ret;
-  const char *name;
-
-  gst_printerr("[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
-
-  GST_PAD_STREAM_LOCK (new_pad);
-  if (!gst_pad_is_active (new_pad))
-    goto bail;
-
-  if (self->got_stream)
-    goto bail;
-
-  caps = gst_pad_get_current_caps (new_pad);
-  if (!caps)
-    caps = gst_pad_query_caps (new_pad, NULL);
-
-  GST_DEBUG_OBJECT (self, "new caps: %" GST_PTR_FORMAT, caps);
-
-  st = gst_caps_get_structure (caps, 0);
-  name = gst_structure_get_name (st);
-  gst_caps_unref (caps);
-
-  if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT
-      && g_strcmp0 (name, "video/x-h264") == 0) {
-    GST_DEBUG_OBJECT (self, "H.264 stream found");
-    decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
-        "oob-pic-params", self->oob_pic_params, NULL);
-    g_assert (decoder);
-
-    gst_bin_add (GST_BIN (self->pipeline), decoder);
-    gst_element_sync_state_with_parent (decoder);
-    decoder_pad = gst_element_get_static_pad (decoder, "sink");
-    ret = gst_pad_link (new_pad, decoder_pad);
-    gst_object_unref (decoder_pad);
-    if (GST_PAD_LINK_FAILED (ret)) {
-      GST_ELEMENT_ERROR (self->pipeline, CORE, PAD, ("Failed to link parserbin to decoder"), (NULL));
-      goto bail;
-    }
-
-    sink = gst_element_factory_make ("fakesink", NULL);
-    g_assert (sink);
-    gst_bin_add (GST_BIN (self->pipeline), sink);
-    gst_element_sync_state_with_parent (sink);
-    sink_pad = gst_element_get_static_pad (sink, "sink");
-    decoder_pad = gst_element_get_static_pad (decoder, "src");
-    ret = gst_pad_link (decoder_pad, sink_pad);
-    gst_object_unref (decoder_pad);
-    gst_object_unref (sink_pad);
-    if (GST_PAD_LINK_FAILED (ret)) {
-      GST_ELEMENT_ERROR (self->pipeline, CORE, PAD, ("Failed to link decoder to fakesink"), (NULL));
-      goto bail;
-    }
-
-    self->got_stream = TRUE;
-  }
-
-bail:
-  GST_PAD_STREAM_UNLOCK (new_pad);
-}
-
-static void
 process_messages (GstVideoParser * self, gboolean wait_for_eos)
 {
   GstMessage *msg;
@@ -223,25 +155,37 @@ static void
 gst_video_parser_constructed (GObject * object)
 {
   GstVideoParser *self = GST_VIDEO_PARSER (object);
-  GstElement *parsebin;
+  GstElement *parser, *decoder, *sink;
   GstStateChangeReturn ret;
   GstAppSrcCallbacks cb = {
     need_data, enough_data, NULL,
   };
+  const char *parser_name = NULL;
+
+  if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
+    parser_name = "h264parse";
+    decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
+        "oob-pic-params", self->oob_pic_params, NULL);
+    g_assert(decoder);
+  } else {
+      g_assert(FALSE);
+  }
 
   self->appsrc = gst_element_factory_make ("appsrc", NULL);
   g_assert (self->appsrc);
   gst_app_src_set_callbacks (GST_APP_SRC (self->appsrc), &cb, self, NULL);
 
-  parsebin = gst_element_factory_make ("parsebin", NULL);
-  g_assert (parsebin);
+  parser = gst_element_factory_make (parser_name, NULL);
+  g_assert (parser);
 
-  g_signal_connect (parsebin, "pad-added", G_CALLBACK (on_pad_added), self);
+  sink = gst_element_factory_make ("fakesink", NULL);
+  g_assert (sink);
 
   self->pipeline = gst_pipeline_new ("videoparse");
-  gst_bin_add_many (GST_BIN (self->pipeline), self->appsrc, parsebin, NULL);
-  if (!gst_element_link (self->appsrc, parsebin))
-    GST_WARNING_OBJECT (self, "Failed to link appsrc with parsebin");
+  gst_bin_add_many (GST_BIN (self->pipeline), self->appsrc, parser, decoder,
+      sink, NULL);
+  if (!gst_element_link_many (self->appsrc, parser, decoder, sink, NULL))
+    GST_WARNING_OBJECT (self, "Failed to link element");
 
   ret = gst_element_set_state (self->pipeline, GST_STATE_PLAYING);
   if (ret == GST_STATE_CHANGE_FAILURE)
