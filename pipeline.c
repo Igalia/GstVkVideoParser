@@ -28,6 +28,7 @@ struct _GstVideoParser
   VkVideoCodecOperationFlagBitsKHR codec;
   gboolean oob_pic_params;
   GstHarness *parser;
+  GstBus *bus;
 };
 
 enum {
@@ -46,11 +47,60 @@ G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT
 #include <unistd.h>
 
 static void
+process_messages (GstVideoParser * self)
+{
+  GstMessage *msg;
+
+  while ((msg = gst_bus_pop (self->bus))) {
+    GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
+
+    switch (GST_MESSAGE_TYPE (msg)) {
+      case GST_MESSAGE_ERROR:{
+        GError *err = NULL;
+        char *debug = NULL;
+
+        gst_message_parse_error (msg, &err, &debug);
+        GST_ERROR_OBJECT (self, "Error: %s - %s", err->message, debug);
+        g_clear_error (&err);
+        g_free (debug);
+        break;
+      }
+      case GST_MESSAGE_WARNING:{
+        GError *err = NULL;
+        char *debug = NULL;
+
+        gst_message_parse_warning (msg, &err, &debug);
+        GST_WARNING_OBJECT (self, "Warning: %s - %s", err->message, debug);
+        g_clear_error (&err);
+        g_free (debug);
+        break;
+      }
+      case GST_MESSAGE_EOS:
+        GST_DEBUG_OBJECT (self, "Got EOS");
+        break;
+      default:
+        break;
+    }
+
+    gst_message_unref (msg);
+  }
+}
+
+static void
 gst_video_parser_dispose (GObject* object)
 {
   GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstMessage *msg;
 
   gst_harness_teardown (self->parser);
+
+  /* drain bus after bin unref */
+  while ((msg = gst_bus_pop (self->bus))) {
+    GST_DEBUG_OBJECT (self, "%s", GST_MESSAGE_TYPE_NAME (msg));
+    gst_message_unref (msg);
+  }
+
+  gst_object_unref (self->bus);
 
   G_OBJECT_CLASS (gst_video_parser_parent_class)->dispose (object);
 }
@@ -88,6 +138,10 @@ gst_video_parser_constructed (GObject * object)
   }
 
   self->parser = gst_harness_new_with_element (bin, "sink", NULL);
+
+  self->bus = gst_bus_new ();
+  gst_element_set_bus (bin, self->bus);
+
   gst_object_unref (bin);
 
   gst_harness_set_live (self->parser, FALSE);
@@ -172,6 +226,8 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
     return ret;
   }
 
+  process_messages (self);
+
   return ret;
 }
 
@@ -182,6 +238,8 @@ gst_video_parser_eos (GstVideoParser * self)
 
   if (!gst_harness_push_event (self->parser, gst_event_new_eos ()))
     return GST_FLOW_ERROR;
+
+  process_messages (self);
 
   return GST_FLOW_EOS;
 }
