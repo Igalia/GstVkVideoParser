@@ -113,7 +113,7 @@ public:
     }
 
     bool DecodePicture(VkParserPictureData *pic) final {
-        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stderr, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
         return true;
     }
 

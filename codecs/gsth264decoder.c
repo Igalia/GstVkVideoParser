@@ -1880,7 +1880,8 @@ gst_h264_decoder_finish_current_picture (GstH264Decoder * self,
   gst_h264_decoder_clear_ref_pic_lists (self);
 
   /* finish picture takes ownership of the picture */
-  gst_h264_decoder_finish_picture (self, priv->current_picture, &flow_ret);
+  if (flow_ret == GST_FLOW_OK)
+    gst_h264_decoder_finish_picture (self, priv->current_picture, &flow_ret);
   priv->current_picture = NULL;
 
   UPDATE_FLOW_RETURN (ret, flow_ret);
