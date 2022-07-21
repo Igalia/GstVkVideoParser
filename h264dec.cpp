@@ -254,6 +254,7 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
   gsize len;
   uint32_t *slice_offsets;
+  GstFlowReturn ret = GST_FLOW_OK;
 
   vkpic->data.pBitstreamData = g_byte_array_steal (vkpic->bitstream, &len);
   vkpic->data.nBitstreamDataLen = static_cast<int32_t>(len);
@@ -262,13 +263,13 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 
   if (self->client) {
     if (!self->client->DecodePicture(&vkpic->data))
-      return GST_FLOW_ERROR;
+      ret = GST_FLOW_ERROR;
   }
 
   g_free (vkpic->data.pBitstreamData);
   g_free (slice_offsets);
 
-  return GST_FLOW_OK;
+  return ret;
 }
 
 static uint8_t *
