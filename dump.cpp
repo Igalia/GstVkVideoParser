@@ -406,7 +406,7 @@ void dump_parser_picture_data(VkParserPictureData* pic)
     print_integer("ref_pic_flag", pic->ref_pic_flag); // Frame is a reference frame
     print_integer("intra_pic_flag", pic->intra_pic_flag); // Frame is entirely intra coded (no temporal
         // dependencies)
-    print_integer("chroma_format", pic->intra_pic_flag); // Chroma Format (should match sequence info)
+    print_integer("chroma_format", pic->chroma_format); // Chroma Format (should match sequence info)
     print_integer("picture_order_count", pic->picture_order_count); // picture order count (if known)
     print_string("pbSideData", "%s", "");  // uint8_t* pbSideData; // Encryption Info
     print_integer("nSideDataLen", pic->nSideDataLen); // Encryption Info length
