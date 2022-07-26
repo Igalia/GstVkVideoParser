@@ -624,16 +624,16 @@ gst_h264_decoder_parse_sps (GstH264Decoder * self, GstH264NalUnit * nalu)
 static GstFlowReturn
 gst_h264_decoder_parse_pps (GstH264Decoder * self, GstH264NalUnit * nalu)
 {
-    GstH264DecoderClass* klass = GST_H264_DECODER_GET_CLASS(self);
-    GstH264DecoderPrivate* priv = self->priv;
-    GstH264PPS pps;
-    GstH264ParserResult pres;
-    GstFlowReturn ret = GST_FLOW_OK;
+  GstH264DecoderClass* klass = GST_H264_DECODER_GET_CLASS(self);
+  GstH264DecoderPrivate *priv = self->priv;
+  GstH264PPS pps;
+  GstH264ParserResult pres;
+  GstFlowReturn ret = GST_FLOW_OK;
 
-    pres = gst_h264_parse_pps(priv->parser, nalu, &pps);
-    if (pres != GST_H264_PARSER_OK) {
-        GST_WARNING_OBJECT(self, "Failed to parse PPS, result %d", pres);
-        return GST_FLOW_ERROR;
+  pres = gst_h264_parse_pps (priv->parser, nalu, &pps);
+  if (pres != GST_H264_PARSER_OK) {
+    GST_WARNING_OBJECT (self, "Failed to parse PPS, result %d", pres);
+    return GST_FLOW_ERROR;
   }
 
   GST_LOG_OBJECT (self, "PPS parsed");
