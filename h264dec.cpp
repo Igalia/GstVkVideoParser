@@ -420,7 +420,7 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
       .constraint_set2_flag = sps->constraint_set2_flag,
       .constraint_set3_flag = sps->constraint_set3_flag,
       .constraint_set4_flag = sps->constraint_set4_flag,
-      .constraint_set5_flag = sps->constraint_set4_flag,
+      .constraint_set5_flag = sps->constraint_set5_flag,
       .direct_8x8_inference_flag = sps->direct_8x8_inference_flag,
       .mb_adaptive_frame_field_flag = sps->mb_adaptive_frame_field_flag,
       .frame_mbs_only_flag = sps->frame_mbs_only_flag,
@@ -580,9 +580,24 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
       .FrameIdx = GST_H264_PICTURE_IS_LONG_TERM_REF(picture) ? picture->long_term_pic_num : picture->pic_num,
       .is_long_term = GST_H264_PICTURE_IS_LONG_TERM_REF(picture),
       .not_existing = picture->nonexisting,
-      .used_for_reference = GST_H264_PICTURE_IS_REF(picture),
       .FieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
     };
+
+    // 0=unused, 1=top_field, 2=bottom_field, 3=both_fields
+    switch (picture->field) {
+    case GST_H264_PICTURE_FIELD_FRAME:
+      h264->dpb[i].used_for_reference = 3;
+      break;
+    case GST_H264_PICTURE_FIELD_BOTTOM_FIELD:
+      h264->dpb[i].used_for_reference = 2;
+      break;
+    case GST_H264_PICTURE_FIELD_TOP_FIELD:
+      h264->dpb[i].used_for_reference = 1;
+      break;
+    default:
+      h264->dpb[i].used_for_reference = 0;
+      break;
+    }
   }
   g_array_unref (pic_list);
 
