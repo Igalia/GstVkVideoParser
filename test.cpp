@@ -88,7 +88,7 @@ public:
     int32_t BeginSequence(const VkParserSequenceInfo *info) final {
         int32_t max = 16, conf = 1;
 
-        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
         dump_parser_sequence_info(info);
 
@@ -104,7 +104,7 @@ public:
     }
 
     bool AllocPictureBuffer(VkPicIf **pic) final {
-        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
         for (auto &apic : m_dpb) {
             if (apic.isAvailable()) {
@@ -118,26 +118,26 @@ public:
     }
 
     bool DecodePicture(VkParserPictureData *pic) final {
-        fprintf(stderr, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
+        fprintf(stdout, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
         dump_parser_picture_data(pic);
         return true;
     }
 
     bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase> &shared, uint64_t count) final {
-        //fprintf(stderr, "%s: %" PRIu64 "\n", __FUNCTION__, count);
-        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        //fprintf(stdout, "%s: %" PRIu64 "\n", __FUNCTION__, count);
+        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         shared = PictureParameterSet::create();
         dump_picture_parameters(params);
         return true;
     }
 
     bool DisplayPicture(VkPicIf *pic, int64_t ts) final {
-        fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         return true;
     }
 
     void UnhandledNALU(const uint8_t*, int32_t) final {
-        fprintf(stderr, "%s\n",__FUNCTION__);
+        fprintf(stdout, "%s\n",__FUNCTION__);
     }
 
     ~VideoParserClient() {
@@ -164,7 +164,7 @@ static bool parse(FILE *stream)
     int32_t parsed;
     VkParserBitstreamPacket pkt;
 
-    fprintf(stderr, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+    fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
     ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType) printf, 50);
     assert(ret);
@@ -187,7 +187,7 @@ static bool parse(FILE *stream)
         };
 
         if (!parser->ParseByteStream(&pkt, &parsed)) {
-            fprintf(stderr, "failed to parse bitstream.\n");
+            fprintf(stdout, "failed to parse bitstream.\n");
             break;
         }
 
@@ -204,13 +204,13 @@ int main(int argc, char **argv)
     FILE *file;
 
     if (argc != 2) {
-        fprintf(stderr, "Could not ope file: %s.\n", argv[1]);
+        fprintf(stdout, "Could not ope file: %s.\n", argv[1]);
         return EXIT_SUCCESS;
     }
 
     file = fopen(argv[1], "r");
     if (!file) {
-        fprintf(stderr, "Unable to open: %s -- %s.\n", argv[1], strerror (errno));
+        fprintf(stdout, "Unable to open: %s -- %s.\n", argv[1], strerror (errno));
         return EXIT_FAILURE;
     }
 
