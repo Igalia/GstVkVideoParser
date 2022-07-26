@@ -73,6 +73,7 @@ struct VkPic
   GByteArray *bitstream;
   VkH264Picture vkp;
   uint8_t* slice_group_map;
+  GArray *slice_offsets;
 };
 
 enum {
@@ -88,9 +89,12 @@ static VkPic *
 vk_pic_new (VkPicIf *pic)
 {
   VkPic *vkpic = g_new0(struct VkPic, 1);
+  uint32_t zero = 0;
 
   vkpic->pic = pic;
   vkpic->bitstream = g_byte_array_new ();
+  vkpic->slice_offsets = g_array_new(FALSE, FALSE, sizeof (uint32_t));
+  g_array_append_val(vkpic->slice_offsets, zero);
   return vkpic;
 }
 
@@ -101,6 +105,7 @@ vk_pic_free (gpointer data)
 
   vkpic->pic->Release();
   g_byte_array_unref (vkpic->bitstream);
+  g_array_unref (vkpic->slice_offsets);
   g_free (vkpic->slice_group_map);
   g_free (vkpic);
 }
@@ -185,9 +190,13 @@ static GstFlowReturn
 gst_h264_dec_decode_slice(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GArray * ref_pic_list0, GArray * ref_pic_list1)
 {
   VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  uint32_t prev_offset, offset;
 
   vkpic->data.nNumSlices++;
   vkpic->bitstream = g_byte_array_append (vkpic->bitstream, slice->nalu.data, slice->nalu.size);
+  prev_offset = g_array_index (vkpic->slice_offsets, uint32_t, vkpic->slice_offsets->len - 1);
+  offset = prev_offset + slice->nalu.size;
+  g_array_append_val (vkpic->slice_offsets, offset);
 
   return GST_FLOW_OK;
 }
@@ -258,8 +267,7 @@ gst_h264_dec_end_picture(GstH264Decoder * decoder, GstH264Picture * picture)
 
   vkpic->data.pBitstreamData = g_byte_array_steal (vkpic->bitstream, &len);
   vkpic->data.nBitstreamDataLen = static_cast<int32_t>(len);
-  slice_offsets = static_cast<uint32_t*>(g_malloc0(vkpic->data.nNumSlices));
-  vkpic->data.pSliceDataOffsets = slice_offsets;
+  vkpic->data.pSliceDataOffsets = slice_offsets = static_cast<uint32_t*>(g_array_steal (vkpic->slice_offsets, NULL));
 
   if (self->client) {
     if (!self->client->DecodePicture(&vkpic->data))
