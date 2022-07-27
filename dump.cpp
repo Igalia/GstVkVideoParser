@@ -122,6 +122,19 @@ static void print_string(const char *tag, const char *format, ...)
     print_newline();
 }
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+static void print_hex(const char *tag, const uint8_t *buf, unsigned size)
+{
+    print_indent();
+    print_tag(tag);
+
+    for (unsigned i = 0; i < MIN(20, size); i++)
+        printf(" %02x", buf[i]);
+
+    print_newline();
+}
+
 static void dump_std_video_h264_sps_flags(const StdVideoH264SpsFlags *flags)
 {
     start_object("StdVideoH264SpsFlags");
@@ -413,8 +426,15 @@ void dump_parser_picture_data(VkParserPictureData* pic)
 
     // Bitstream data
     print_integer("nBitstreamDataLen", pic->nBitstreamDataLen); // Number of bytes in bitstream data buffer
-    //uint8_t* pBitstreamData; // Ptr to bitstream data for this picture (slice-layer)
-    print_integer("nNumSlices", pic->nNumSlices);; // Number of slices(tiles in case of AV1) in this picture
+    print_integer("nNumSlices", pic->nNumSlices); // Number of slices(tiles in case of AV1) in this picture
+    for (unsigned i = 0; i < pic->nNumSlices; i++) {
+        unsigned siz;
+        if (i == pic->nNumSlices - 1)
+            siz = sizeof(pic->pBitstreamData) - pic->pSliceDataOffsets[i];
+        else
+            siz = pic->pSliceDataOffsets[i + 1];
+        print_hex("pBitstreamData", pic->pBitstreamData + pic->pSliceDataOffsets[i], siz); // Ptr to bitstream data for this picture (slice-layer)
+    }
     start_array("pSliceDataOffsets");
     //const uint32_t* pSliceDataOffsets; // nNumSlices entries, contains offset of each slice
         // within the bitstream data buffer
