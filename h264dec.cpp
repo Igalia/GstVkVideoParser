@@ -59,6 +59,7 @@ struct _GstH264Dec
   GstH264SPS last_sps;
   GstH264PPS last_pps;
   VkH264Picture vkp;
+  GArray *refs;
 
   VkSharedBaseObj<VkParserVideoRefCountBase> spsclient, ppsclient;
 
@@ -494,6 +495,55 @@ fill_pps (GstH264PPS* pps, VkH264Picture * vkp)
   };
 }
 
+static void
+fill_dbp_entry (VkParserH264DpbEntry * entry, GstH264Picture * picture)
+{
+  auto vkpic = reinterpret_cast<VkPic*>(gst_h264_picture_get_user_data (picture));
+  if (!vkpic) {
+    *entry = { 0, };
+    return;
+  }
+
+  *entry = (VkParserH264DpbEntry) {
+    .pPicBuf = vkpic->pic,
+    .FrameIdx = GST_H264_PICTURE_IS_LONG_TERM_REF (picture) ? picture->long_term_pic_num : picture->pic_num,
+    .is_long_term = GST_H264_PICTURE_IS_LONG_TERM_REF (picture),
+    .not_existing = picture->nonexisting,
+  };
+
+  // used_for_reference: 0=unused, 1=top_field, 2=bottom_field, 3=both_fields
+  switch (picture->field) {
+  case GST_H264_PICTURE_FIELD_FRAME:
+    entry->used_for_reference = 3;
+    entry->FieldOrderCnt[0] = picture->top_field_order_cnt;
+    entry->FieldOrderCnt[1] = picture->bottom_field_order_cnt;
+    break;
+  case GST_H264_PICTURE_FIELD_BOTTOM_FIELD:
+    if (picture->other_field) {
+      entry->FieldOrderCnt[0] = picture->other_field->top_field_order_cnt;
+      entry->used_for_reference = 3;
+    } else {
+      entry->FieldOrderCnt[0] = 0;
+      entry->used_for_reference = 2;
+    }
+    entry->FieldOrderCnt[1] = picture->bottom_field_order_cnt;
+    break;
+  case GST_H264_PICTURE_FIELD_TOP_FIELD:
+    entry->FieldOrderCnt[0] = picture->top_field_order_cnt;
+    if (picture->other_field) {
+      entry->FieldOrderCnt[1] = picture->other_field->bottom_field_order_cnt;
+      entry->used_for_reference = 3;
+    } else {
+      entry->FieldOrderCnt[1] = 0;
+      entry->used_for_reference = 2;
+    }
+    break;
+  default:
+    entry->used_for_reference = 0;
+    break;
+  }
+}
+
 static GstFlowReturn
 gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GstH264Dpb * dpb)
 {
@@ -502,8 +552,6 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
   VkH264Picture *vkp = &self->vkp;
   GstH264PPS *pps = slice->header.pps;
   GstH264SPS *sps = pps->sequence;
-  GArray *pic_list;
-  guint i;
 
   if (!self->oob_pic_params
       || (self->sps_update_count == 0 && self->sps_update_count == 0)) {
@@ -572,35 +620,27 @@ gst_h264_dec_start_picture(GstH264Decoder * decoder, GstH264Picture * picture, G
     // VkParserH264DpbEntry dpb[16 + 1]; // List of reference frames within the DPB
   };
 
-  pic_list = gst_h264_dpb_get_pictures_all (dpb);
-  for (i = 0; i < pic_list->len; i++) {
-    GstH264Picture *picture = g_array_index (pic_list, GstH264Picture *, i);
-    auto vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
-    h264->dpb[i] = (VkParserH264DpbEntry) {
-      .pPicBuf = vkpic->pic,
-      .FrameIdx = GST_H264_PICTURE_IS_LONG_TERM_REF(picture) ? picture->long_term_pic_num : picture->pic_num,
-      .is_long_term = GST_H264_PICTURE_IS_LONG_TERM_REF(picture),
-      .not_existing = picture->nonexisting,
-      .FieldOrderCnt = { picture->top_field_order_cnt, picture->bottom_field_order_cnt },
-    };
+  /* reference frames */
+  {
+    guint i, ref_frame_idx = 0;
 
-    // 0=unused, 1=top_field, 2=bottom_field, 3=both_fields
-    switch (picture->field) {
-    case GST_H264_PICTURE_FIELD_FRAME:
-      h264->dpb[i].used_for_reference = 3;
-      break;
-    case GST_H264_PICTURE_FIELD_BOTTOM_FIELD:
-      h264->dpb[i].used_for_reference = 2;
-      break;
-    case GST_H264_PICTURE_FIELD_TOP_FIELD:
-      h264->dpb[i].used_for_reference = 1;
-      break;
-    default:
-      h264->dpb[i].used_for_reference = 0;
-      break;
+    gst_h264_dpb_get_pictures_short_term_ref (dpb, FALSE, FALSE, self->refs);
+    for (i = 0; ref_frame_idx < 16 + 1 && i < self->refs->len; i++) {
+      GstH264Picture* pic = g_array_index(self->refs, GstH264Picture*, i);
+      fill_dbp_entry (&h264->dpb[ref_frame_idx++], pic);
     }
+    g_array_set_size(self->refs, 0);
+
+    gst_h264_dpb_get_pictures_long_term_ref(dpb, FALSE, self->refs);
+    for (; ref_frame_idx < 16 + 1 && i < self->refs->len; i++) {
+      GstH264Picture* pic = g_array_index(self->refs, GstH264Picture*, i);
+      fill_dbp_entry(&h264->dpb[ref_frame_idx++], pic);
+    }
+    g_array_set_size(self->refs, 0);
+
+    for (; ref_frame_idx < 16 + 1; ref_frame_idx++)
+      h264->dpb[ref_frame_idx] = { 0, };
   }
-  g_array_unref (pic_list);
 
   return GST_FLOW_OK;
 }
@@ -792,6 +832,8 @@ gst_h264_dec_dispose (GObject * object)
   if (self->ppsclient)
     self->ppsclient->Release();
 
+  g_clear_pointer (&self->refs, g_array_unref);
+
   G_OBJECT_CLASS (parent_class)->dispose(object);
 }
 
@@ -849,4 +891,7 @@ static void
 gst_h264_dec_init(GstH264Dec * self)
 {
   gst_h264_decoder_set_process_ref_pic_lists(GST_H264_DECODER(self), FALSE);
+
+  self->refs = g_array_sized_new (FALSE, TRUE, sizeof (GstH264Decoder *), 16);
+  g_array_set_clear_func (self->refs, (GDestroyNotify) gst_clear_h264_picture);
 }
