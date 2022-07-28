@@ -191,13 +191,15 @@ static GstFlowReturn
 gst_h264_dec_decode_slice(GstH264Decoder * decoder, GstH264Picture * picture, GstH264Slice * slice, GArray * ref_pic_list0, GArray * ref_pic_list1)
 {
   VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
+  static const uint8_t nal[] = { 0, 0, 1 };
   uint32_t offset;
 
   vkpic->data.nNumSlices++;
   // nvidia parser adds 000001 NAL unit identifier at every slice
+  g_byte_array_append(vkpic->bitstream, nal, sizeof (nal));
   g_byte_array_append (vkpic->bitstream, slice->nalu.data + slice->nalu.offset, slice->nalu.size);
   // GST_MEMDUMP_OBJECT(decoder, "SLICE :", slice->nalu.data + slice->nalu.offset, slice->nalu.size);
-  offset = g_array_index (vkpic->slice_offsets, uint32_t, vkpic->slice_offsets->len - 1) + slice->nalu.size;
+  offset = g_array_index (vkpic->slice_offsets, uint32_t, vkpic->slice_offsets->len - 1) + slice->nalu.size + sizeof (nal);
   g_array_append_val (vkpic->slice_offsets, offset);
 
   return GST_FLOW_OK;
