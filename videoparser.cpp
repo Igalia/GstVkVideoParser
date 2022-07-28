@@ -68,7 +68,6 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
 bool GstVideoDecoderParser::Deinitialize()
 {
     gst_clear_object (&m_parser);
-    gst_deinit();
     return true;
 }
 
@@ -107,6 +106,9 @@ int32_t GstVideoDecoderParser::Release()
 {
     if (g_atomic_int_dec_and_test (&m_refCount)) {
         Deinitialize();
+        // Deinitialize can be called explicitly and Release
+        if (gst_is_initialized ())
+            gst_deinit ();
         delete this;
         return 0;
     }
