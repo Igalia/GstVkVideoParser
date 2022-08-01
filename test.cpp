@@ -16,11 +16,11 @@
  */
 
 #include <atomic>
-#include <vector>
 #include <cerrno>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "dump.h"
 #include "videoparser.h"
@@ -31,18 +31,20 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-class PictureParameterSet : public VkParserVideoRefCountBase
-{
+class PictureParameterSet : public VkParserVideoRefCountBase {
 public:
-    static PictureParameterSet* create() {
+    static PictureParameterSet* create()
+    {
         return new PictureParameterSet();
     }
 
-    int32_t AddRef() final {
+    int32_t AddRef() final
+    {
         return ++m_refCount;
     }
 
-    int32_t Release() final {
+    int32_t Release() final
+    {
         uint32_t ret = --m_refCount;
         // Destroy the device if refcount reaches zero
         if (ret == 0)
@@ -53,19 +55,27 @@ public:
 private:
     std::atomic<int32_t> m_refCount;
 
-    PictureParameterSet() : m_refCount(0) {}
+    PictureParameterSet()
+        : m_refCount(0)
+    {
+    }
 };
 
 class Picture : public VkPicIf {
 public:
-    Picture() : m_refCount(0) {}
+    Picture()
+        : m_refCount(0)
+    {
+    }
 
-    void AddRef() final {
+    void AddRef() final
+    {
         assert(m_refCount >= 0);
         ++m_refCount;
     }
 
-    void Release() final {
+    void Release() final
+    {
         assert(m_refCount > 0);
         int32_t ref = --m_refCount;
         if (ref == 0) {
@@ -83,9 +93,13 @@ private:
 
 class VideoParserClient : public VkParserVideoDecodeClient {
 public:
-    VideoParserClient() : m_dpb(32) { }
+    VideoParserClient()
+        : m_dpb(32)
+    {
+    }
 
-    int32_t BeginSequence(const VkParserSequenceInfo *info) final {
+    int32_t BeginSequence(const VkParserSequenceInfo* info) final
+    {
         int32_t max = 16, conf = 1;
 
         fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
@@ -103,10 +117,11 @@ public:
         return std::min(conf, 17);
     }
 
-    bool AllocPictureBuffer(VkPicIf **pic) final {
+    bool AllocPictureBuffer(VkPicIf** pic) final
+    {
         fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
-        for (auto &apic : m_dpb) {
+        for (auto& apic : m_dpb) {
             if (apic.isAvailable()) {
                 apic.AddRef();
                 *pic = &apic;
@@ -117,45 +132,50 @@ public:
         return false;
     }
 
-    bool DecodePicture(VkParserPictureData *pic) final {
+    bool DecodePicture(VkParserPictureData* pic) final
+    {
         fprintf(stdout, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
         dump_parser_picture_data(pic);
         return true;
     }
 
-    bool UpdatePictureParameters(VkPictureParameters *params, VkSharedBaseObj<VkParserVideoRefCountBase> &shared, uint64_t count) final {
-        //fprintf(stdout, "%s: %" PRIu64 "\n", __FUNCTION__, count);
+    bool UpdatePictureParameters(VkPictureParameters* params, VkSharedBaseObj<VkParserVideoRefCountBase>& shared, uint64_t count) final
+    {
+        // fprintf(stdout, "%s: %" PRIu64 "\n", __FUNCTION__, count);
         fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         shared = PictureParameterSet::create();
         dump_picture_parameters(params);
         return true;
     }
 
-    bool DisplayPicture(VkPicIf *pic, int64_t ts) final {
+    bool DisplayPicture(VkPicIf* pic, int64_t ts) final
+    {
         fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
         return true;
     }
 
-    void UnhandledNALU(const uint8_t*, int32_t) final {
-        fprintf(stdout, "%s\n",__FUNCTION__);
+    void UnhandledNALU(const uint8_t*, int32_t) final
+    {
+        fprintf(stdout, "%s\n", __FUNCTION__);
     }
 
-    ~VideoParserClient() {
-        for (auto &pic : m_dpb)
-            assert (pic.isAvailable());
+    ~VideoParserClient()
+    {
+        for (auto& pic : m_dpb)
+            assert(pic.isAvailable());
     }
 
 private:
     std::vector<Picture> m_dpb;
 };
 
-static bool parse(FILE *stream)
+static bool parse(FILE* stream)
 {
     VulkanVideoDecodeParser* parser = nullptr;
     VideoParserClient client = VideoParserClient();
     VkParserInitDecodeParameters params = {
-         .interfaceVersion = VK_MAKE_VIDEO_STD_VERSION(0, 9, 1),
-         .pClient = &client,
+        .interfaceVersion = VK_MAKE_VIDEO_STD_VERSION(0, 9, 1),
+        .pClient = &client,
         .bOutOfBandPictureParameters = true,
     };
     bool ret;
@@ -166,7 +186,7 @@ static bool parse(FILE *stream)
 
     fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
-    ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType) printf, 50);
+    ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType)printf, 50);
     assert(ret);
     if (!ret)
         return ret;
@@ -191,7 +211,7 @@ static bool parse(FILE *stream)
             break;
         }
 
-        assert (pkt.nDataLength == parsed);
+        assert(pkt.nDataLength == parsed);
     }
 
     ret = (parser->Release() == 0);
@@ -199,9 +219,9 @@ static bool parse(FILE *stream)
     return ret;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-    FILE *file;
+    FILE* file;
 
     if (argc != 2) {
         fprintf(stdout, "Could not ope file: %s.\n", argv[1]);
@@ -210,7 +230,7 @@ int main(int argc, char **argv)
 
     file = fopen(argv[1], "r");
     if (!file) {
-        fprintf(stdout, "Unable to open: %s -- %s.\n", argv[1], strerror (errno));
+        fprintf(stdout, "Unable to open: %s -- %s.\n", argv[1], strerror(errno));
         return EXIT_FAILURE;
     }
 

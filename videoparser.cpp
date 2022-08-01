@@ -21,13 +21,14 @@
 #include <gst/codecparsers/gsth264parser.h>
 #include <vk_video/vulkan_video_codecs_common.h>
 
-class GstVideoDecoderParser : public VulkanVideoDecodeParser
-{
+class GstVideoDecoderParser : public VulkanVideoDecodeParser {
 public:
     GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
         : m_refCount(1)
         , m_codec(codec)
-        , m_parser(nullptr) { }
+        , m_parser(nullptr)
+    {
+    }
 
     VkResult Initialize(VkParserInitDecodeParameters*) final;
     bool Deinitialize() final;
@@ -46,7 +47,7 @@ private:
 
     int m_refCount;
     VkVideoCodecOperationFlagBitsKHR m_codec;
-    GstVideoParser *m_parser;
+    GstVideoParser* m_parser;
 };
 
 VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
@@ -67,25 +68,25 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
 
 bool GstVideoDecoderParser::Deinitialize()
 {
-    gst_clear_object (&m_parser);
+    gst_clear_object(&m_parser);
     return true;
 }
 
-bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket *bspacket, int32_t *parsed)
+bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspacket, int32_t* parsed)
 {
     if (parsed)
         *parsed = 0;
 
-    auto buffer = gst_buffer_new_memdup (bspacket->pByteStream, bspacket->nDataLength);
+    auto buffer = gst_buffer_new_memdup(bspacket->pByteStream, bspacket->nDataLength);
     if (!buffer)
         return false;
 
-    auto ret = gst_video_parser_push_buffer (m_parser, buffer);
+    auto ret = gst_video_parser_push_buffer(m_parser, buffer);
     if (ret != GST_FLOW_OK)
         return false;
 
     if (bspacket->bEOS) {
-        ret = gst_video_parser_eos (m_parser);
+        ret = gst_video_parser_eos(m_parser);
         if (ret != GST_FLOW_EOS)
             return false;
     }
@@ -104,11 +105,11 @@ int32_t GstVideoDecoderParser::AddRef()
 
 int32_t GstVideoDecoderParser::Release()
 {
-    if (g_atomic_int_dec_and_test (&m_refCount)) {
+    if (g_atomic_int_dec_and_test(&m_refCount)) {
         Deinitialize();
         // Deinitialize can be called explicitly and Release
-        if (gst_is_initialized ())
-            gst_deinit ();
+        if (gst_is_initialized())
+            gst_deinit();
         delete this;
         return 0;
     }
@@ -128,4 +129,3 @@ bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCode
     *parser = internalParser;
     return true;
 }
-
