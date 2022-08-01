@@ -31,20 +31,19 @@ struct _GstVideoParser
   GstBus *bus;
 };
 
-enum {
+enum
+{
   PROP_USER_DATA = 1,
   PROP_CODEC,
   PROP_OOB_PIC_PARAMS,
 };
 
-GST_DEBUG_CATEGORY(gst_video_parser_debug);
+GST_DEBUG_CATEGORY (gst_video_parser_debug);
 #define GST_CAT_DEFAULT gst_video_parser_debug
 
-G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser, GST_TYPE_OBJECT,
-    GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug, "videoparser", 0, "Video Parser"))
-
-#include <sys/syscall.h>
-#include <unistd.h>
+G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser,
+    GST_TYPE_OBJECT, GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug,
+        "videoparser", 0, "Video Parser"))
 
 static void
 process_messages (GstVideoParser * self)
@@ -87,7 +86,7 @@ process_messages (GstVideoParser * self)
 }
 
 static void
-gst_video_parser_dispose (GObject* object)
+gst_video_parser_dispose (GObject * object)
 {
   GstVideoParser *self = GST_VIDEO_PARSER (object);
   GstMessage *msg;
@@ -154,7 +153,7 @@ gst_video_parser_constructed (GObject * object)
 
 static void
 gst_video_parser_set_property (GObject * object, guint property_id,
-     const GValue * value, GParamSpec *pspec)
+    const GValue * value, GParamSpec * pspec)
 {
   GstVideoParser *self = GST_VIDEO_PARSER (object);
 
@@ -196,8 +195,8 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
 
   g_object_class_install_property (gobject_class,
       PROP_OOB_PIC_PARAMS, g_param_spec_boolean ("oob-pic-params",
-      "oob-pic-params", "oop-pic-params", FALSE,
-      G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+          "oob-pic-params", "oop-pic-params", FALSE,
+          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 }
 
 static void
@@ -210,7 +209,7 @@ gst_video_parser_new (gpointer user_data,
     VkVideoCodecOperationFlagBitsKHR codec, gboolean oob_pic_params)
 {
   return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, "user-data",
-      user_data, "codec", codec, "oob-pic-params", oob_pic_params, NULL));
+          user_data, "codec", codec, "oob-pic-params", oob_pic_params, NULL));
 }
 
 GstFlowReturn
@@ -222,7 +221,8 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
 
   ret = gst_harness_push (self->parser, buffer);
   if (ret != GST_FLOW_OK && ret != GST_FLOW_EOS) {
-    GST_WARNING_OBJECT (self, "Couldn't push buffer: %s", gst_flow_get_name (ret));
+    GST_WARNING_OBJECT (self, "Couldn't push buffer: %s",
+        gst_flow_get_name (ret));
     return ret;
   }
 

@@ -17,13 +17,15 @@
 
 #include "videoutils.h"
 
-uint32_t pack_framerate(uint32_t numerator, uint32_t denominator)
+uint32_t
+pack_framerate (uint32_t numerator, uint32_t denominator)
 {
   while ((numerator >= (1 << 18)) || (denominator >= (1 << 14))) {
     if (!(numerator % 5) && !(denominator % 5)) {
       numerator /= 5;
       denominator /= 5;
-    } else if (((numerator | denominator) & 1) && !(numerator % 3) && !(denominator % 3)) {
+    } else if (((numerator | denominator) & 1) && !(numerator % 3)
+        && !(denominator % 3)) {
       numerator /= 3;
       denominator /= 3;
     } else {
@@ -31,5 +33,5 @@ uint32_t pack_framerate(uint32_t numerator, uint32_t denominator)
       denominator = (denominator + 1) >> 1;
     }
   }
-  return MAKEFRAMERATE(numerator, denominator);
+  return MAKEFRAMERATE (numerator, denominator);
 }
