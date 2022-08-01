@@ -108,6 +108,7 @@ print_integer (const char *tag, int64_t value)
   print_newline ();
 }
 
+#if 0
 static void
 print_double (const char *tag, double value)
 {
@@ -116,6 +117,7 @@ print_double (const char *tag, double value)
   printf ("%lg,", value);
   print_newline ();
 }
+#endif
 
 static void
 print_string (const char *tag, const char *format, ...)
