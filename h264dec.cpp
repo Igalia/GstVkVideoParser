@@ -617,7 +617,9 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
     .repeat_first_field = 0, // For 3:2 pulldown (number of additional fields,
                              // 2=frame doubling, 4=frame tripling)
     .ref_pic_flag = picture->ref_pic, // Frame is a reference frame
-    //.intra_pic_flag, // Frame is entirely intra coded (no temporal dependencies)
+    .intra_pic_flag =
+        GST_H264_IS_I_SLICE (&slice->header)
+        || GST_H264_IS_SI_SLICE (&slice->header), // Frame is entirely intra coded (no temporal dependencies)
     .chroma_format = sps->chroma_format_idc, // Chroma Format (should match sequence info)
     .picture_order_count = picture->pic_order_cnt, // picture order count (if known)
 
@@ -648,7 +650,8 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
     .deblocking_filter_control_present_flag =
         pps->deblocking_filter_control_present_flag,
     .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
-    //.MbaffFrameFlag =
+    .MbaffFrameFlag =
+        (sps->mb_adaptive_frame_field_flag && !slice->header.field_pic_flag),
     .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
     .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
     .pic_order_present_flag = pps->pic_order_present_flag,
