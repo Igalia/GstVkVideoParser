@@ -798,6 +798,7 @@ gst_h265_decoder_parse_nalu (GstH265Decoder * self, GstH265NalUnit * nalu)
   GstH265PPS pps;
   GstH265ParserResult ret = GST_H265_PARSER_OK;
   GstH265DecoderNalUnit decoder_nalu;
+  GstH265DecoderClass* klass = GST_H265_DECODER_GET_CLASS (self);
 
   GST_LOG_OBJECT (self, "Parsed nal type: %d, offset %d, size %d",
       nalu->type, nalu->offset, nalu->size);
@@ -805,11 +806,16 @@ gst_h265_decoder_parse_nalu (GstH265Decoder * self, GstH265NalUnit * nalu)
   switch (nalu->type) {
     case GST_H265_NAL_VPS:
       ret = gst_h265_parser_parse_vps (priv->parser, nalu, &vps);
+      if (klass->update_picture_parameters)
+        klass->update_picture_parameters (self, GST_H265_NAL_VPS, &vps);
       break;
     case GST_H265_NAL_SPS:
       ret = gst_h265_parser_parse_sps (priv->parser, nalu, &sps, TRUE);
       if (ret != GST_H265_PARSER_OK)
         break;
+
+      if (klass->update_picture_parameters)
+        klass->update_picture_parameters (self, GST_H265_NAL_SPS, &sps);
 
       memset (&decoder_nalu, 0, sizeof (GstH265DecoderNalUnit));
       decoder_nalu.unit.sps = sps;
@@ -817,6 +823,8 @@ gst_h265_decoder_parse_nalu (GstH265Decoder * self, GstH265NalUnit * nalu)
       break;
     case GST_H265_NAL_PPS:
       ret = gst_h265_parser_parse_pps (priv->parser, nalu, &pps);
+      if (klass->update_picture_parameters)
+        klass->update_picture_parameters (self, GST_H265_NAL_PPS, &pps);
       break;
     case GST_H265_NAL_PREFIX_SEI:
     case GST_H265_NAL_SUFFIX_SEI:
@@ -849,6 +857,8 @@ gst_h265_decoder_parse_nalu (GstH265Decoder * self, GstH265NalUnit * nalu)
       priv->prev_nal_is_eos = TRUE;
       break;
     default:
+      if (klass->unhandled_nalu)
+        klass->unhandled_nalu (self, nalu->data + nalu->offset, nalu->size);
       break;
   }
 
@@ -922,6 +932,7 @@ gst_h265_decoder_parse_codec_data (GstH265Decoder * self, const guint8 * data,
   GstH265VPS vps;
   GstH265SPS sps;
   GstH265PPS pps;
+  GstH265DecoderClass* klass = GST_H265_DECODER_GET_CLASS (self);
 
   /* parse the hvcC data */
   if (size < 23) {
@@ -964,6 +975,8 @@ gst_h265_decoder_parse_codec_data (GstH265Decoder * self, const guint8 * data,
             GST_WARNING_OBJECT (self, "Failed to parse VPS");
             return GST_FLOW_ERROR;
           }
+          if (klass->update_picture_parameters)
+            klass->update_picture_parameters (self, GST_H265_NAL_VPS, &vps);
           break;
         case GST_H265_NAL_SPS:
           pres = gst_h265_parser_parse_sps (priv->parser, &nalu, &sps, TRUE);
@@ -971,6 +984,8 @@ gst_h265_decoder_parse_codec_data (GstH265Decoder * self, const guint8 * data,
             GST_WARNING_OBJECT (self, "Failed to parse SPS");
             return GST_FLOW_ERROR;
           }
+          if (klass->update_picture_parameters)
+            klass->update_picture_parameters (self, GST_H265_NAL_SPS, &sps);
 
           ret = gst_h265_decoder_process_sps (self, &sps);
           if (ret != GST_FLOW_OK) {

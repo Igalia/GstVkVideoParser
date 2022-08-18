@@ -5,10 +5,13 @@ project('gst-vkvideo-parser', 'c', 'cpp',
 sources = [
   'videoparser.cpp',
   'h264dec.cpp',
+  'h265dec.cpp',
   'pipeline.c',
   'videoutils.c',
   'codecs/gsth264decoder.c',
   'codecs/gsth264picture.c',
+  'codecs/gsth265decoder.c',
+  'codecs/gsth265picture.c',
 ]
 
 videoparser = shared_library(

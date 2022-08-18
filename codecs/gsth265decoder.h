@@ -182,6 +182,15 @@ struct _GstH265DecoderClass
   guint (*get_preferred_output_delay)   (GstH265Decoder * decoder,
                                          gboolean live);
 
+  void (*unhandled_nalu)                (GstH265Decoder * decoder,
+                                         const guint8 * data,
+                                         guint32 len);
+
+  void (*update_picture_parameters)     (GstH265Decoder* decoder,
+                                         GstH265NalUnitType type,
+                                         const gpointer nalu);
+
+
   /*< private >*/
   gpointer padding[GST_PADDING_LARGE];
 };
