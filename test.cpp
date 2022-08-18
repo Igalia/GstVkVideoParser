@@ -223,14 +223,27 @@ static bool parse(FILE* stream)
 
 int main(int argc, char** argv)
 {
+    int opt;
     FILE* file;
 
-    if (argc != 2) {
-        fprintf(stdout, "Could not ope file: %s.\n", argv[1]);
-        return EXIT_SUCCESS;
+    while ((opt = getopt (argc, argv, "c:")) != -1) {
+        switch (opt) {
+        case 'c':
+            if (strcmp (optarg, "h265") == 0)
+                codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
+            break;
+        default:
+            fprintf (stdout, "%s [-c {h264|h265}] filename\n", argv[0]);
+            return EXIT_FAILURE;
+        }
     }
 
-    file = fopen(argv[1], "r");
+    if (optind >= argc) {
+        fprintf (stdout, "Missing media file.\n");
+        return EXIT_FAILURE;
+    }
+
+    file = fopen(argv[optind], "r");
     if (!file) {
         fprintf(stdout, "Unable to open: %s -- %s.\n", argv[1], strerror(errno));
         return EXIT_FAILURE;
