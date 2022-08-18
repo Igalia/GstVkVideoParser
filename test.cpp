@@ -31,6 +31,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+static VkVideoCodecOperationFlagBitsKHR codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
+
 class PictureParameterSet : public VkParserVideoRefCountBase {
 public:
     static PictureParameterSet* create()
@@ -135,7 +137,7 @@ public:
     bool DecodePicture(VkParserPictureData* pic) final
     {
         fprintf(stdout, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
-        dump_parser_picture_data(pic);
+        dump_parser_picture_data(codec, pic);
         return true;
     }
 
@@ -186,7 +188,7 @@ static bool parse(FILE* stream)
 
     fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
-    ret = CreateVulkanVideoDecodeParser(&parser, VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT, (ParserLogFuncType)printf, 50);
+    ret = CreateVulkanVideoDecodeParser(&parser, codec, (ParserLogFuncType)printf, 50);
     assert(ret);
     if (!ret)
         return ret;

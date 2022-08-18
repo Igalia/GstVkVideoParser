@@ -463,7 +463,7 @@ dump_parser_h264_picture_data (const VkParserH264PictureData * data)
 }
 
 void
-dump_parser_picture_data (VkParserPictureData * pic)
+dump_parser_picture_data (VkVideoCodecOperationFlagBitsKHR codec, VkParserPictureData * pic)
 {
   start_object ("VkParserPictureData");
   print_integer ("PicWidthInMbs", pic->PicWidthInMbs);  // Coded Frame Size
@@ -503,7 +503,8 @@ dump_parser_picture_data (VkParserPictureData * pic)
     print_integer (NULL, pic->pSliceDataOffsets[i]);
   end_array ();
 
-  dump_parser_h264_picture_data (&pic->CodecSpecific.h264);
+  if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT)
+       dump_parser_h264_picture_data (&pic->CodecSpecific.h264);
 
   end_object ();
 }
