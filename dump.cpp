@@ -329,6 +329,481 @@ dump_std_video_h264_pps (const StdVideoH264PictureParameterSet * pps)
   end_object ();
 }
 
+static void
+dump_std_video_h265_sps_flags (const StdVideoH265SpsFlags * flags)
+{
+  start_object ("StdVideoH265SpsFlags");
+  print_integer ("sps_temporal_id_nesting_flag",
+      flags->sps_temporal_id_nesting_flag);
+  print_integer ("separate_colour_plane_flag",
+      flags->separate_colour_plane_flag);
+  print_integer ("scaling_list_enabled_flag", flags->scaling_list_enabled_flag);
+  print_integer ("sps_scaling_list_data_present_flag",
+      flags->sps_scaling_list_data_present_flag);
+  print_integer ("amp_enabled_flag", flags->amp_enabled_flag);
+  print_integer ("sample_adaptive_offset_enabled_flag",
+      flags->sample_adaptive_offset_enabled_flag);
+  print_integer ("pcm_enabled_flag", flags->pcm_enabled_flag);
+  print_integer ("pcm_loop_filter_disabled_flag",
+      flags->pcm_loop_filter_disabled_flag);
+  print_integer ("long_term_ref_pics_present_flag",
+      flags->long_term_ref_pics_present_flag);
+  print_integer ("sps_temporal_mvp_enabled_flag",
+      flags->sps_temporal_mvp_enabled_flag);
+  print_integer ("strong_intra_smoothing_enabled_flag",
+      flags->strong_intra_smoothing_enabled_flag);
+  print_integer ("vui_parameters_present_flag",
+      flags->vui_parameters_present_flag);
+  print_integer ("sps_extension_present_flag",
+      flags->sps_extension_present_flag);
+  print_integer ("sps_range_extension_flag", flags->sps_range_extension_flag);
+  print_integer ("transform_skip_rotation_enabled_flag",
+      flags->transform_skip_rotation_enabled_flag);
+  print_integer ("transform_skip_context_enabled_flag",
+      flags->transform_skip_context_enabled_flag);
+  print_integer ("implicit_rdpcm_enabled_flag",
+      flags->implicit_rdpcm_enabled_flag);
+  print_integer ("explicit_rdpcm_enabled_flag",
+      flags->explicit_rdpcm_enabled_flag);
+  print_integer ("extended_precision_processing_flag",
+      flags->extended_precision_processing_flag);
+  print_integer ("intra_smoothing_disabled_flag",
+      flags->intra_smoothing_disabled_flag);
+  print_integer ("high_precision_offsets_enabled_flag",
+      flags->high_precision_offsets_enabled_flag);
+  print_integer ("persistent_rice_adaptation_enabled_flag",
+      flags->persistent_rice_adaptation_enabled_flag);
+  print_integer ("cabac_bypass_alignment_enabled_flag",
+      flags->cabac_bypass_alignment_enabled_flag);
+  print_integer ("sps_scc_extension_flag", flags->sps_scc_extension_flag);
+  print_integer ("sps_curr_pic_ref_enabled_flag",
+      flags->sps_curr_pic_ref_enabled_flag);
+  print_integer ("palette_mode_enabled_flag", flags->palette_mode_enabled_flag);
+  print_integer ("sps_palette_predictor_initializer_present_flag",
+      flags->sps_palette_predictor_initializer_present_flag);
+  print_integer ("intra_boundary_filtering_disabled_flag",
+      flags->intra_boundary_filtering_disabled_flag);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_scaling_lists (const StdVideoH265ScalingLists * lists)
+{
+  start_object ("StdVideoH265ScalingLists");
+  start_array ("ScalingList4x4");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_4X4_NUM_LISTS; i++)
+    for (int j = 0; j < STD_VIDEO_H265_SCALING_LIST_4X4_NUM_ELEMENTS; j++)
+      print_integer (NULL, lists->ScalingList4x4[i][j]);
+  end_array ();
+  start_array ("ScalingList8x8");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_8X8_NUM_LISTS; i++)
+    for (int j = 0; j < STD_VIDEO_H265_SCALING_LIST_8X8_NUM_ELEMENTS; j++)
+      print_integer (NULL, lists->ScalingList8x8[i][j]);
+  end_array ();
+  start_array ("ScalingList16x16");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_16X16_NUM_LISTS; i++)
+    for (int j = 0; j < STD_VIDEO_H265_SCALING_LIST_16X16_NUM_ELEMENTS; j++)
+      print_integer (NULL, lists->ScalingList16x16[i][j]);
+  end_array ();
+  start_array ("ScalingList32x32");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_32X32_NUM_LISTS; i++)
+    for (int j = 0; j < STD_VIDEO_H265_SCALING_LIST_32X32_NUM_ELEMENTS; j++)
+      print_integer (NULL, lists->ScalingList32x32[i][j]);
+  end_array ();
+  start_array ("ScalingistDCCoef16x16");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_16X16_NUM_LISTS; i++)
+    print_integer (NULL, lists->ScalingListDCCoef16x16[i]);
+  end_array ();
+  start_array ("ScalingistDCCoef32x32");
+  for (int i = 0; i < STD_VIDEO_H265_SCALING_LIST_32X32_NUM_LISTS; i++)
+    print_integer (NULL, lists->ScalingListDCCoef32x32[i]);
+  end_array ();
+  end_object ();
+}
+
+static void
+dump_std_video_h265_dec_pic_buf_mgr (const StdVideoH265DecPicBufMgr * bmgr)
+{
+  start_object ("StdVideoH265DecPicBufMgr");
+  start_array ("max_latency_increase_plus1");
+  for (int i = 0; i < STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE; i++)
+    print_integer (NULL, bmgr->max_latency_increase_plus1[i]);
+  end_array ();
+  start_array ("max_dec_pic_buffering_minus1");
+  for (int i = 0; i < STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE; i++)
+    print_integer (NULL, bmgr->max_dec_pic_buffering_minus1[i]);
+  end_array ();
+  start_array ("max_num_reorder_pics");
+  for (int i = 0; i < STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE; i++)
+    print_integer (NULL, bmgr->max_num_reorder_pics[i]);
+  end_array ();
+  end_object ();
+}
+
+static void
+dump_std_video_h265_sps_vui_flags (const StdVideoH265SpsVuiFlags * flags)
+{
+  start_object ("StdVideoH265SpsVuiFlags");
+  print_integer ("aspect_ratio_info_present_flag",
+      flags->aspect_ratio_info_present_flag);
+  print_integer ("overscan_info_present_flag",
+      flags->overscan_info_present_flag);
+  print_integer ("overscan_appropriate_flag",
+      flags->overscan_appropriate_flag);
+  print_integer ("video_signal_type_present_flag",
+      flags->video_signal_type_present_flag);
+  print_integer ("video_full_range_flag", flags->video_full_range_flag);
+  print_integer ("colour_description_present_flag",
+      flags->colour_description_present_flag);
+  print_integer ("chroma_loc_info_present_flag",
+      flags->chroma_loc_info_present_flag);
+  print_integer ("neutral_chroma_indication_flag",
+      flags->neutral_chroma_indication_flag);
+  print_integer ("field_seq_flag", flags->field_seq_flag);
+  print_integer ("frame_field_info_present_flag",
+      flags->frame_field_info_present_flag);
+  print_integer ("default_display_window_flag",
+      flags->default_display_window_flag);
+  print_integer ("vui_timing_info_present_flag",
+      flags->vui_timing_info_present_flag);
+  print_integer ("vui_poc_proportional_to_timing_flag",
+      flags->vui_poc_proportional_to_timing_flag);
+  print_integer ("vui_hrd_parameters_present_flag",
+      flags->vui_hrd_parameters_present_flag);
+  print_integer ("bitstream_restriction_flag",
+      flags->bitstream_restriction_flag);
+  print_integer ("tiles_fixed_structure_flag",
+      flags->tiles_fixed_structure_flag);
+  print_integer ("motion_vectors_over_pic_boundaries_flag",
+      flags->motion_vectors_over_pic_boundaries_flag);
+  print_integer ("restricted_ref_pic_lists_flag",
+      flags->restricted_ref_pic_lists_flag);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_hrd_flags (const StdVideoH265HrdFlags * flags)
+{
+  start_object ("StdVideoH265HrdFlags");
+  print_integer ("nal_hrd_parameters_present_flag",
+      flags->nal_hrd_parameters_present_flag);
+  print_integer ("vcl_hrd_parameters_present_flag",
+      flags->vcl_hrd_parameters_present_flag);
+  print_integer ("sub_pic_hrd_params_present_flag",
+      flags->sub_pic_hrd_params_present_flag);
+  print_integer ("sub_pic_cpb_params_in_pic_timing_sei_flag",
+      flags->sub_pic_cpb_params_in_pic_timing_sei_flag);
+  print_integer ("fixed_pic_rate_general_flag",
+      flags->fixed_pic_rate_general_flag);
+  print_integer ("fixed_pic_rate_within_cvs_flag",
+      flags->fixed_pic_rate_within_cvs_flag);
+  print_integer ("low_delay_hrd_flag",
+      flags->low_delay_hrd_flag);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_hrd (const StdVideoH265HrdParameters * hrd)
+{
+  start_object ("StdVideoH265HrdParameters");
+  dump_std_video_h265_hrd_flags (&hrd->flags);
+  print_integer ("tick_divisor_minus2", hrd->tick_divisor_minus2);
+  print_integer ("du_cpb_removal_delay_increment_length_minus1",
+      hrd->du_cpb_removal_delay_increment_length_minus1);
+  print_integer ("dpb_output_delay_du_length_minus1",
+      hrd->dpb_output_delay_du_length_minus1);
+  print_integer ("bit_rate_scale", hrd->bit_rate_scale);
+  print_integer ("cpb_size_scale", hrd->cpb_size_scale);
+  print_integer ("cpb_size_du_scale", hrd->cpb_size_du_scale);
+  print_integer ("initial_cpb_removal_delay_length_minus1",
+      hrd->initial_cpb_removal_delay_length_minus1);
+  print_integer ("au_cpb_removal_delay_length_minus1",
+      hrd->au_cpb_removal_delay_length_minus1);
+  print_integer ("dpb_output_delay_length_minus1",
+      hrd->dpb_output_delay_du_length_minus1);
+  start_array ("cpb_cnt_minus1");
+  for (int i = 0; i < STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE; i++)
+    print_integer (NULL, hrd->cpb_cnt_minus1[i]);
+  end_array ();
+  start_array ("elemental_duration_in_tc_minus1");
+  for (int i = 0; i < STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE; i++)
+    print_integer (NULL, hrd->elemental_duration_in_tc_minus1[i]);
+  end_array ();
+  // TODO:
+  //const StdVideoH265SubLayerHrdParameters*    pSubLayerHrdParametersNal[STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE];
+  //const StdVideoH265SubLayerHrdParameters*    pSubLayerHrdParametersVcl[STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE];
+  end_object ();
+}
+
+static void
+dump_std_video_h265_sps_vui (const StdVideoH265SequenceParameterSetVui * vui)
+{
+  start_object ("StdVideoH265SequenceParameterSetVui");
+  dump_std_video_h265_sps_vui_flags (&vui->flags);
+  print_integer ("aspect_ratio_idc", vui->aspect_ratio_idc);
+  print_integer ("sar_width", vui->sar_width);
+  print_integer ("sar_height", vui->sar_height);
+  print_integer ("video_format", vui->video_format);
+  print_integer ("colour_primaries", vui->colour_primaries);
+  print_integer ("transfer_characteristics", vui->transfer_characteristics);
+  print_integer ("matrix_coeffs", vui->matrix_coeffs);
+  print_integer ("chroma_sample_loc_type_top_field",
+      vui->chroma_sample_loc_type_top_field);
+  print_integer ("chroma_sample_loc_type_bottom_field",
+      vui->chroma_sample_loc_type_bottom_field);
+  print_integer ("def_disp_win_left_offset", vui->def_disp_win_left_offset);
+  print_integer ("def_disp_win_right_offset", vui->def_disp_win_right_offset);
+  print_integer ("def_disp_win_top_offset", vui->def_disp_win_top_offset);
+  print_integer ("def_disp_win_bottom_offset", vui->def_disp_win_bottom_offset);
+  print_integer ("vui_num_units_in_tick", vui->vui_num_units_in_tick);
+  print_integer ("vui_time_scale", vui->vui_time_scale);
+  print_integer ("vui_num_ticks_poc_diff_one_minus1",
+      vui->vui_num_ticks_poc_diff_one_minus1);
+  if (vui->pHrdParameters)
+    dump_std_video_h265_hrd (vui->pHrdParameters);
+  print_integer ("min_spatial_segmentation_idc",
+      vui->min_spatial_segmentation_idc);
+  print_integer ("max_bytes_per_pic_denom", vui->max_bytes_per_pic_denom);
+  print_integer ("max_bits_per_min_cu_denom", vui->max_bits_per_min_cu_denom);
+  print_integer ("log2_max_mv_length_horizontal",
+      vui->log2_max_mv_length_horizontal);
+  print_integer ("log2_max_mv_length_vertical2",
+      vui->log2_max_mv_length_vertical);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_predictor_palette_entries
+    (const StdVideoH265PredictorPaletteEntries * entry)
+{
+  start_object ("StdVideoH265PredictorPaletteEntries");
+  start_array ("PredictorPaletteEntries");
+  for (int i = 0; i < STD_VIDEO_H265_PREDICTOR_PALETTE_COMPONENTS_LIST_SIZE; i++)
+    for (int j = 0; j < STD_VIDEO_H265_PREDICTOR_PALETTE_COMP_ENTRIES_LIST_SIZE; j++)
+      print_integer (NULL, entry->PredictorPaletteEntries[i][j]);
+  end_array ();
+  end_object ();
+}
+
+static void
+dump_std_video_h265_sps (const StdVideoH265SequenceParameterSet * sps)
+{
+  start_object ("StdVideoH265SequenceParameterSet");
+  dump_std_video_h265_sps_flags (&sps->flags);
+  print_integer ("profile_idc", sps->profile_idc);
+  print_integer ("level_idc", sps->level_idc);
+  print_integer ("pic_width_in_luma_samples", sps->pic_width_in_luma_samples);
+  print_integer ("pic_height_in_luma_samples", sps->pic_height_in_luma_samples);
+  print_integer ("sps_video_parameter_set_id", sps->sps_video_parameter_set_id);
+  print_integer ("sps_max_sub_layers_minus1", sps->sps_max_sub_layers_minus1);
+  print_integer ("sps_seq_parameter_set_id", sps->sps_seq_parameter_set_id);
+  print_integer ("chroma_format_idc", sps->chroma_format_idc);
+  print_integer ("bit_depth_luma_minus8", sps->bit_depth_chroma_minus8);
+  print_integer ("bit_depth_chroma_minus8", sps->bit_depth_chroma_minus8);
+  print_integer ("log2_max_pic_order_cnt_lsb_minus4",
+      sps->log2_max_pic_order_cnt_lsb_minus4);
+  print_integer ("log2_min_luma_coding_block_size_minus3",
+      sps->log2_min_luma_coding_block_size_minus3);
+  print_integer ("log2_diff_max_min_luma_coding_block_size",
+      sps->log2_diff_max_min_luma_transform_block_size);
+  print_integer ("log2_min_luma_transform_block_size_minus2",
+      sps->log2_min_luma_transform_block_size_minus2);
+  print_integer ("log2_diff_max_min_luma_transform_block_size",
+      sps->log2_diff_max_min_luma_coding_block_size);
+  print_integer ("max_transform_hierarchy_depth_inter",
+      sps->max_transform_hierarchy_depth_inter);
+  print_integer ("max_transform_hierarchy_depth_intra",
+      sps->max_transform_hierarchy_depth_intra);
+  print_integer ("num_short_term_ref_pic_sets",
+      sps->num_short_term_ref_pic_sets);
+  print_integer ("num_long_term_ref_pics_sps", sps->num_long_term_ref_pics_sps);
+  print_integer ("pcm_sample_bit_depth_luma_minus1",
+      sps->pcm_sample_bit_depth_luma_minus1);
+  print_integer ("pcm_sample_bit_depth_chroma_minus1",
+      sps->pcm_sample_bit_depth_chroma_minus1);
+  print_integer ("log2_min_pcm_luma_coding_block_size_minus3",
+      sps->log2_min_pcm_luma_coding_block_size_minus3);
+  print_integer ("log2_diff_max_min_pcm_luma_coding_block_size",
+      sps->log2_diff_max_min_pcm_luma_coding_block_size);
+  print_integer ("conf_win_left_offset", sps->conf_win_left_offset);
+  print_integer ("conf_win_right_offset", sps->conf_win_right_offset);
+  print_integer ("conf_win_top_offset", sps->conf_win_top_offset);
+  print_integer ("conf_win_bottom_offset", sps->conf_win_bottom_offset);
+  if (sps->pDecPicBufMgr)
+    dump_std_video_h265_dec_pic_buf_mgr (sps->pDecPicBufMgr);
+  if (sps->pScalingLists)
+    dump_std_video_h265_scaling_lists (sps->pScalingLists);
+  if (sps->pSequenceParameterSetVui)
+    dump_std_video_h265_sps_vui (sps->pSequenceParameterSetVui);
+  print_integer ("palette_max_size", sps->palette_max_size);
+  print_integer ("delta_palette_max_predictor_size",
+      sps->delta_palette_max_predictor_size);
+  print_integer ("motion_vector_resolution_control_idc",
+      sps->motion_vector_resolution_control_idc);
+  print_integer ("sps_num_palette_predictor_initializer_minus1",
+      sps->sps_num_palette_predictor_initializer_minus1);
+  if (sps->pPredictorPaletteEntries)
+    dump_std_video_h265_predictor_palette_entries (sps->pPredictorPaletteEntries);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_pps_flags (const StdVideoH265PpsFlags * flags)
+{
+  start_object ("StdVideoH265PpsFlags");
+  print_integer ("dependent_slice_segments_enabled_flag",
+      flags->dependent_slice_segments_enabled_flag);
+  print_integer ("output_flag_present_flag", flags->output_flag_present_flag);
+  print_integer ("sign_data_hiding_enabled_flag",
+      flags->sign_data_hiding_enabled_flag);
+  print_integer ("cabac_init_present_flag", flags->cabac_init_present_flag);
+  print_integer ("constrained_intra_pred_flag",
+      flags->constrained_intra_pred_flag);
+  print_integer ("transform_skip_enabled_flag",
+      flags->transform_skip_enabled_flag);
+  print_integer ("cu_qp_delta_enabled_flag", flags->cu_qp_delta_enabled_flag);
+  print_integer ("pps_slice_chroma_qp_offsets_present_flag",
+      flags->pps_slice_chroma_qp_offsets_present_flag);
+  print_integer ("weighted_pred_flag", flags->weighted_pred_flag);
+  print_integer ("weighted_bipred_flag", flags->weighted_bipred_flag);
+  print_integer ("transquant_bypass_enabled_flag",
+      flags->transquant_bypass_enabled_flag);
+  print_integer ("tiles_enabled_flag", flags->tiles_enabled_flag);
+  print_integer ("entropy_coding_sync_enabled_flag",
+      flags->entropy_coding_sync_enabled_flag);
+  print_integer ("uniform_spacing_flag", flags->uniform_spacing_flag);
+  print_integer ("loop_filter_across_tiles_enabled_flag",
+      flags->loop_filter_across_tiles_enabled_flag);
+  print_integer ("pps_loop_filter_across_slices_enabled_flag",
+      flags->pps_loop_filter_across_slices_enabled_flag);
+  print_integer ("deblocking_filter_control_present_flag",
+      flags->deblocking_filter_control_present_flag);
+  print_integer ("deblocking_filter_override_enabled_flag",
+      flags->deblocking_filter_override_enabled_flag);
+  print_integer ("pps_deblocking_filter_disabled_flag",
+      flags->pps_deblocking_filter_disabled_flag);
+  print_integer ("pps_scaling_list_data_present_flag",
+      flags->pps_scaling_list_data_present_flag);
+  print_integer ("lists_modification_present_flag",
+      flags->lists_modification_present_flag);
+  print_integer ("slice_segment_header_extension_present_flag",
+      flags->slice_segment_header_extension_present_flag);
+  print_integer ("pps_extension_present_flag",
+      flags->pps_extension_present_flag);
+  print_integer ("cross_component_prediction_enabled_flag",
+      flags->cross_component_prediction_enabled_flag);
+  print_integer ("chroma_qp_offset_list_enabled_flag",
+      flags->chroma_qp_offset_list_enabled_flag);
+  print_integer ("pps_curr_pic_ref_enabled_flag",
+      flags->pps_curr_pic_ref_enabled_flag);
+  print_integer ("residual_adaptive_colour_transform_enabled_flag",
+      flags->residual_adaptive_colour_transform_enabled_flag);
+  print_integer ("pps_slice_act_qp_offsets_present_flag",
+      flags->pps_slice_act_qp_offsets_present_flag);
+  print_integer ("pps_palette_predictor_initializer_present_flag",
+      flags->pps_palette_predictor_initializer_present_flag);
+  print_integer ("monochrome_palette_flag", flags->monochrome_palette_flag);
+  print_integer ("pps_range_extension_flag", flags->pps_range_extension_flag);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_pps (const StdVideoH265PictureParameterSet * pps)
+{
+  start_object ("StdVideoH265PictureParameterSet");
+  dump_std_video_h265_pps_flags (&pps->flags);
+  print_integer ("pps_pic_parameter_set_id", pps->pps_pic_parameter_set_id);
+  print_integer ("pps_seq_parameter_set_id", pps->pps_seq_parameter_set_id);
+  print_integer ("num_extra_slice_header_bits",
+      pps->num_extra_slice_header_bits);
+  print_integer ("num_ref_idx_l0_default_active_minus1",
+      pps->num_ref_idx_l0_default_active_minus1);
+  print_integer ("num_ref_idx_l1_default_active_minus1",
+      pps->num_ref_idx_l1_default_active_minus1);
+  print_integer ("init_qp_minus26", pps->init_qp_minus26);
+  print_integer ("diff_cu_qp_delta_depth", pps->diff_cu_qp_delta_depth);
+  print_integer ("pps_cb_qp_offset", pps->pps_cb_qp_offset);
+  print_integer ("pps_cr_qp_offset", pps->pps_cr_qp_offset);
+  print_integer ("num_tile_columns_minus1", pps->num_tile_columns_minus1);
+  print_integer ("num_tile_rows_minus1", pps->num_tile_rows_minus1);
+  start_array ("column_width_minus1");
+  for (int i = 0; i < STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE; i++)
+    print_integer (NULL, pps->column_width_minus1[i]);
+  end_array ();
+  start_array ("row_height_minus1");
+  for (int i = 0; i < STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE; i++)
+    print_integer (NULL, pps->row_height_minus1[i]);
+  end_array ();
+  print_integer ("pps_beta_offset_div2", pps->pps_beta_offset_div2);
+  print_integer ("pps_tc_offset_div2", pps->pps_tc_offset_div2);
+  print_integer ("log2_parallel_merge_level_minus2",
+      pps->log2_parallel_merge_level_minus2);
+  if (pps->pScalingLists)
+    dump_std_video_h265_scaling_lists (pps->pScalingLists);
+  print_integer ("log2_max_transform_skip_block_size_minus2",
+      pps->log2_max_transform_skip_block_size_minus2);
+  print_integer ("diff_cu_chroma_qp_offset_depth",
+      pps->diff_cu_chroma_qp_offset_depth);
+  print_integer ("chroma_qp_offset_list_len_minus1",
+      pps->chroma_qp_offset_list_len_minus1);
+  start_array ("cb_qp_offset_list");
+  for (int i = 0; i < STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE; i++)
+    print_integer (NULL, pps->cb_qp_offset_list[i]);
+  end_array ();
+  start_array ("cr_qp_offset_list");
+  for (int i = 0; i < STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE; i++)
+    print_integer (NULL, pps->cr_qp_offset_list[i]);
+  end_array ();
+  print_integer ("log2_sao_offset_scale_luma", pps->log2_sao_offset_scale_luma);
+  print_integer ("log2_sao_offset_scale_chroma",
+      pps->log2_sao_offset_scale_chroma);
+  print_integer ("pps_act_y_qp_offset_plus5", pps->pps_act_y_qp_offset_plus5);
+  print_integer ("pps_act_cb_qp_offset_plus5", pps->pps_act_cb_qp_offset_plus5);
+  print_integer ("pps_act_cr_qp_offset_plus5", pps->pps_act_cr_qp_offset_plus5);
+  print_integer ("pps_num_palette_predictor_initializer",
+      pps->pps_num_palette_predictor_initializer);
+  print_integer ("luma_bit_depth_entry_minus8",
+      pps->luma_bit_depth_entry_minus8);
+  print_integer ("chroma_bit_depth_entry_minus8",
+      pps->chroma_bit_depth_entry_minus8);
+  if (pps->pPredictorPaletteEntries)
+    dump_std_video_h265_predictor_palette_entries (pps->pPredictorPaletteEntries);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_vps_flags (const StdVideoH265VpsFlags * flags)
+{
+  start_object ("StdVideoH265VpsFlags");
+  print_integer ("vps_temporal_id_nesting_flag",
+      flags->vps_temporal_id_nesting_flag);
+  print_integer ("vps_sub_layer_ordering_info_present_flag",
+      flags->vps_sub_layer_ordering_info_present_flag);
+  print_integer ("vps_timing_info_present_flag",
+      flags->vps_timing_info_present_flag);
+  print_integer ("vps_poc_proportional_to_timing_flag",
+      flags->vps_poc_proportional_to_timing_flag);
+  end_object ();
+}
+
+static void
+dump_std_video_h265_vps (const StdVideoH265VideoParameterSet * vps)
+{
+  start_object ("StdVideoH265VideoParameterSet");
+  dump_std_video_h265_vps_flags (&vps->flags);
+  print_integer ("vps_video_parameter_set_id", vps->vps_video_parameter_set_id);
+  print_integer ("vps_max_sub_layers_minus1", vps->vps_max_sub_layers_minus1);
+  print_integer ("vps_num_units_in_tick", vps->vps_num_units_in_tick);
+  print_integer ("vps_time_scale", vps->vps_time_scale);
+  print_integer ("vps_num_ticks_poc_diff_one_minus1",
+      vps->vps_num_ticks_poc_diff_one_minus1);
+  if (vps->pDecPicBufMgr)
+    dump_std_video_h265_dec_pic_buf_mgr (vps->pDecPicBufMgr);
+  if (vps->pHrdParameters)
+    dump_std_video_h265_hrd (vps->pHrdParameters);
+  end_object ();
+}
+
 void
 dump_picture_parameters (VkPictureParameters * params)
 {
@@ -342,13 +817,13 @@ dump_picture_parameters (VkPictureParameters * params)
       dump_std_video_h264_pps (params->pH264Pps);
       break;
     case VK_PICTURE_PARAMETERS_UPDATE_H265_VPS:
-      print_string ("updateType", "%s", "H265 VPS");
+      dump_std_video_h265_vps (params->pH265Vps);
       break;
     case VK_PICTURE_PARAMETERS_UPDATE_H265_SPS:
-      print_string ("updateType", "%s", "H265 SPS");
+      dump_std_video_h265_sps (params->pH265Sps);
       break;
     case VK_PICTURE_PARAMETERS_UPDATE_H265_PPS:
-      print_string ("updateType", "%s", "H265 PPS");
+      dump_std_video_h265_pps (params->pH265Pps);
       break;
   }
 
@@ -462,6 +937,89 @@ dump_parser_h264_picture_data (const VkParserH264PictureData * data)
   end_object ();
 }
 
+static void
+dump_parser_h265_picture_data (const VkParserHevcPictureData * data)
+{
+  start_object ("VkParserHevcPictureData");
+  dump_std_video_h265_sps (data->pStdSps);
+  // VkParserVideoRefCountBase*              pSpsClientObject;
+  dump_std_video_h265_pps (data->pStdPps);
+  // VkParserVideoRefCountBase*              pPpsClientObject;
+
+  print_integer ("pic_parameter_set_id", data->pic_parameter_set_id);       // PPS ID
+  print_integer ("seq_parameter_set_id", data->seq_parameter_set_id);       // SPS ID
+  print_integer ("vps_video_parameter_set_id",
+      data->vps_video_parameter_set_id); // VPS ID
+
+  print_integer ("IrapPicFlag", data->IrapPicFlag);
+  print_integer ("IdrPicFlag", data->IdrPicFlag);
+
+  // RefPicSets
+  print_integer ("NumBitsForShortTermRPSInSlice",
+      data->NumBitsForShortTermRPSInSlice);
+  print_integer ("NumDeltaPocsOfRefRpsIdx", data->NumDeltaPocsOfRefRpsIdx);
+  print_integer ("NumPocTotalCurr", data->NumPocTotalCurr);
+  print_integer ("NumPocStCurrBefore", data->NumPocStCurrBefore);
+  print_integer ("NumPocStCurrAfter", data->NumPocStCurrAfter);
+  print_integer ("NumPocLtCurr", data->NumPocLtCurr);
+  print_integer ("CurrPicOrderCntVal", data->CurrPicOrderCntVal);
+  // VkPicIf* RefPics[16];
+  start_array ("PicOrderCntVal");
+  for (int i = 0; i < 16; i++)
+    print_integer (NULL, data->PicOrderCntVal[i]);
+  end_array ();
+  start_array ("IsLongTerm");
+  for (int i = 0; i < 16; i++)
+    print_integer (NULL, data->IsLongTerm[i]); // 1=long-term reference
+  end_array ();
+  start_array ("RefPicSetStCurrBefore");
+  for (int i = 0; i < 8; i++)
+    print_integer (NULL, data->RefPicSetStCurrBefore[i]);
+  end_array ();
+  start_array ("RefPicSetStCurrAfter");
+  for (int i = 0; i < 8; i++)
+    print_integer (NULL, data->RefPicSetStCurrAfter[i]);
+  end_array ();
+  start_array ("RefPicSetLtCurr");
+  for (int i = 0; i < 8; i++)
+    print_integer (NULL, data->RefPicSetLtCurr[i]);
+  end_array ();
+
+  // various profile related
+  // 0 = invalid, 1 = Main, 2 = Main10, 3 = still picture, 4 = Main 12,
+  // 5 = MV-HEVC Main8
+  print_integer ("ProfileLevel", data->ProfileLevel);
+  print_integer ("ColorPrimaries", data->ColorPrimaries); // ColorPrimariesBTXXXX enum
+  print_integer ("bit_depth_luma_minus8", data->bit_depth_luma_minus8);
+  print_integer ("bit_depth_chroma_minus8", data->bit_depth_chroma_minus8);
+
+  // MV-HEVC related fields
+  print_integer ("mv_hevc_enable", data->mv_hevc_enable);
+  print_integer ("nuh_layer_id", data->nuh_layer_id);
+  print_integer ("default_ref_layers_active_flag",
+      data->default_ref_layers_active_flag);
+  print_integer ("NumDirectRefLayers", data->NumDirectRefLayers);
+  print_integer ("max_one_active_ref_layer_flag",
+      data->max_one_active_ref_layer_flag);
+  print_integer ("poc_lsb_not_present_flag", data->poc_lsb_not_present_flag);
+  start_array ("pad0");
+  for (int i = 0; i < 2; i++)
+    print_integer (NULL, data->pad0[i]);
+  end_array ();
+
+  print_integer ("NumActiveRefLayerPics0", data->NumActiveRefLayerPics0);
+  print_integer ("NumActiveRefLayerPics1", data->NumActiveRefLayerPics1);
+  start_array ("RefPicSetInterLayer0");
+  for (int i = 0; i < 8; i++)
+    print_integer (NULL, data->RefPicSetInterLayer0[i]);
+  end_array ();
+  start_array ("RefPicSetInterLayer1");
+  for (int i = 0; i < 8; i++)
+    print_integer (NULL, data->RefPicSetInterLayer1[i]);
+  end_array ();
+  end_object ();
+}
+
 void
 dump_parser_picture_data (VkVideoCodecOperationFlagBitsKHR codec, VkParserPictureData * pic)
 {
@@ -505,6 +1063,8 @@ dump_parser_picture_data (VkVideoCodecOperationFlagBitsKHR codec, VkParserPictur
 
   if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT)
        dump_parser_h264_picture_data (&pic->CodecSpecific.h264);
+  else if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT)
+       dump_parser_h265_picture_data (&pic->CodecSpecific.hevc);
 
   end_object ();
 }
