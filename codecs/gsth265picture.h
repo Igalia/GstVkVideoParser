@@ -25,9 +25,10 @@
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
 #endif
 
-#include <gst/gst.h>
-#include <gst/codecs/codecs-prelude.h>
+#include "codecs-prelude.h"
+
 #include <gst/codecparsers/gsth265parser.h>
+#include <gst/gst.h>
 #include <gst/video/video.h>
 
 G_BEGIN_DECLS

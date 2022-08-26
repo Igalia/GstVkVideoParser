@@ -18,7 +18,7 @@
 #pragma once
 
 #include <gst/gst.h>
-#include <gsth265decoder.h>
+#include "gsth265decoder.h"
 
 G_BEGIN_DECLS
 
