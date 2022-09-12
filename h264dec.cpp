@@ -85,7 +85,7 @@ enum
   PROP_OOB_PIC_PARAMS,
 };
 
-G_DEFINE_FINAL_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
+G_DEFINE_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
 
 static gpointer parent_class = NULL;
 
