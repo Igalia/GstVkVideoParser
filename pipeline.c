@@ -41,7 +41,7 @@ enum
 GST_DEBUG_CATEGORY (gst_video_parser_debug);
 #define GST_CAT_DEFAULT gst_video_parser_debug
 
-G_DEFINE_FINAL_TYPE_WITH_CODE (GstVideoParser, gst_video_parser,
+G_DEFINE_TYPE_WITH_CODE (GstVideoParser, gst_video_parser,
     GST_TYPE_OBJECT, GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug,
         "videoparser", 0, "Video Parser"))
 
