@@ -334,7 +334,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
             .sps_palette_predictor_initializer_present_flag = sps->sps_scc_extension_params.sps_palette_predictor_initializers_present_flag,
             .intra_boundary_filtering_disabled_flag = sps->sps_scc_extension_params.intra_boundary_filtering_disabled_flag,
         },
-        .profile_idc = get_profile_idc(sps->profile_tier_level.profile_idc),
+        .profile_idc = get_profile_idc(static_cast<GstH265ProfileIDC>(sps->profile_tier_level.profile_idc)),
         .level_idc = static_cast<StdVideoH265Level>(sps->profile_tier_level.level_idc),
         .pic_width_in_luma_samples = sps->pic_width_in_luma_samples,
         .pic_height_in_luma_samples = sps->pic_height_in_luma_samples,
@@ -379,7 +379,7 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
 }
 
 static void
-fill_vps (GstH265VS * vps, VkH265Picture * vkp)
+fill_vps (GstH265VPS * vps, VkH265Picture * vkp)
 {
 }
 
@@ -460,8 +460,8 @@ gst_h265_dec_start_picture (GstH265Decoder * decoder, GstH265Picture * picture,
       // // 0 = invalid, 1 = Main, 2 = Main10, 3 = still picture, 4 = Main 12,
       // // 5 = MV-HEVC Main8
       .ProfileLevel = vps->profile_tier_level.profile_idc,
-      .ColorPrimaries = (sps->vui_parameters_present_flag ? sps->vui_params.colour_primaries : 0), // ColorPrimariesBTXXXX enum
-      .bit_depth_luma_minus8 = (pps->pps_scc_extension_flag ? pps->pps_scc_extension_params.luma_bit_depth_entry_minus8 : 0),
+      .ColorPrimaries = (sps->vui_parameters_present_flag ? sps->vui_params.colour_primaries : (uint8_t)0), // ColorPrimariesBTXXXX enum
+      .bit_depth_luma_minus8 = (pps->pps_scc_extension_flag ? pps->pps_scc_extension_params.luma_bit_depth_entry_minus8 : (uint8_t)0),
       .bit_depth_chroma_minus8 = (pps->pps_scc_extension_flag ? pps->pps_scc_extension_params.chroma_bit_depth_entry_minus8 : 0),
 
       // // MV-HEVC related fields
@@ -565,7 +565,7 @@ gst_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
       // if (pps_cmp (&self->last_pps, pps))
       //   return;
       // self->last_pps = *pps;
-      // fill_pps (pps, &self->vkp);
+      // fill_vps (pps, &self->vkp);
       params = (VkPictureParameters) {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_VPS,
         .pH265Vps = &self->vkp.vps,
