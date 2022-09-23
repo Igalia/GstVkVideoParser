@@ -15,10 +15,10 @@ sources = [
 videoparser_headers = [
   'videoparser.h',
 ]
-
-gst_dep = dependency('gstreamer-1.0')
+gst_req = '>= 1.20'
+gst_dep = dependency('gstreamer-1.0', version: gst_req)
 gst_check_dep = dependency('gstreamer-check-1.0')
-gst_codecparsers_dep = dependency('gstreamer-codecparsers-1.0')
+gst_codecparsers_dep = dependency('gstreamer-codecparsers-1.0', version: gst_req )
 gst_video_dep = dependency('gstreamer-video-1.0')
 
 libvideoparsers_dependencies = [

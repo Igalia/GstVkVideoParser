@@ -20,6 +20,7 @@
 #include <gst/check/gstharness.h>
 
 #include "h264dec.h"
+#include "h265dec.h"
 
 struct _GstVideoParser
 {
@@ -110,14 +111,23 @@ gst_video_parser_constructed (GObject * object)
   GstVideoParser *self = GST_VIDEO_PARSER (object);
   GstElement *bin, *decoder, *parser, *sink;
   const char *parser_name = NULL;
+  const char* src_caps_desc = NULL;
   GstPad *pad;
 
   if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
     parser_name = "h264parse";
+    src_caps_desc = "video/x-h264,stream-format=byte-stream";
     decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
         "oob-pic-params", self->oob_pic_params, NULL);
     g_assert (decoder);
-  } else {
+  } else if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
+    parser_name = "h265parse";
+    src_caps_desc = "video/x-h265,stream-format=byte-stream";
+    decoder = g_object_new (GST_TYPE_H265_DEC, "user-data", self->user_data,
+        "oob-pic-params", self->oob_pic_params, NULL);
+    g_assert (decoder);
+  }
+  else {
     g_assert (FALSE);
   }
 
@@ -146,7 +156,7 @@ gst_video_parser_constructed (GObject * object)
   gst_harness_set_live (self->parser, FALSE);
 
   gst_harness_set_src_caps_str (self->parser,
-      "video/x-h264,stream-format=byte-stream");
+      src_caps_desc);
 
   gst_harness_play (self->parser);
 }
