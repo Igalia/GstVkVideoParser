@@ -1,0 +1,30 @@
+name: GstVkVideoParsers CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Dependecies
+      run: |
+        sudo apt update
+        sudo apt install pkg-config
+        sudo apt install python3-pip python3-setuptools ninja-build
+        sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev
+        sudo pip3 install --user meson
+
+    - name: Configure
+      run: .meson builddir
+    - name: Compile
+      run: ninja -C builddir
+    - name: Install
+      run: sudo ninja -C builddir install
