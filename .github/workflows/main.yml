@@ -1,0 +1,27 @@
+name: "GstVkVideoParser native build"
+run-name: Native build by ${{ github.actor }}
+on: [pull_request, push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install --assume-yes meson
+          # Hack to install libunwind-dev (gstreamer dependency)
+          sudo apt remove --assume-yes libunwind-14-dev
+          sudo apt install -V --assume-yes --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev
+
+      - name: Configure
+        run:
+          meson ~/builddir
+
+      - name: Build
+        env:
+          TERM: dumb
+        run:
+          ninja -C ~/builddir
