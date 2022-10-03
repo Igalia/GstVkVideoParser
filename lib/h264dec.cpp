@@ -88,7 +88,7 @@ G_DEFINE_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
 
 static gpointer parent_class = NULL;
 
-     static VkPic *vk_pic_new (VkPicIf * pic)
+static VkPic *vk_pic_new (VkPicIf * pic)
 {
   VkPic *vkpic = g_new0 (struct VkPic, 1);
   uint32_t zero = 0;
@@ -263,7 +263,7 @@ gst_h264_dec_output_picture (GstH264Decoder * decoder,
 
   if (self->client) {
     if (!self->client->DisplayPicture (vkpic->pic,
-            picture->system_frame_number)) {
+            picture->system_frame_number * frame->duration / 100)) {
       gst_h264_picture_unref (picture);
       return GST_FLOW_ERROR;
     }
