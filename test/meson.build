@@ -3,7 +3,7 @@ executable(
   dependencies: libvideoparser_dep,
 )
 
-lib_include = include_directories('../lib')
+lib_include = include_directories('../lib', '../lib/vkvideo_parser')
 
 cpp = meson.get_compiler('cpp')
 executable(

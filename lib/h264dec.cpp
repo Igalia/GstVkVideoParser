@@ -19,7 +19,6 @@
 
 #include <atomic>
 
-#include "base.h"
 #include "videoparser.h"
 #include "videoutils.h"
 

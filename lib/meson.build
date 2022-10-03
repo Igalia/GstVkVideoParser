@@ -32,7 +32,7 @@ install_headers(videoparser_headers)
 videoparser = shared_library(
   'gst-vkvideo-parser',
   sources,
-  include_directories: ['codecs', 'vulkan', 'vk_video' ],
+  include_directories: ['codecs', 'vulkan', 'vk_video', 'vkvideo_parser' ],
   cpp_args: '-DGST_USE_UNSTABLE_API',
   c_args: '-DGST_USE_UNSTABLE_API',
   install: true,
@@ -42,7 +42,7 @@ videoparser = shared_library(
 libvideoparser_dep = declare_dependency(
   dependencies: libvideoparsers_dependencies,
   sources: videoparser_headers,
-  include_directories: include_directories('.'),
+  include_directories: include_directories('.', 'vkvideo_parser'),
   link_with: videoparser,
 )
 

@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <cinttypes>
 
 #include "dump.h"
 #include "videoparser.h"
