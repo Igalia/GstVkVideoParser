@@ -19,6 +19,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <cinttypes>
 
 static int indent_depth = 0;
 static int indent_size = 4;
@@ -870,10 +871,22 @@ dump_parser_sequence_info (const VkParserSequenceInfo * info)
 }
 
 static void
+dump_parser_vk_pic_entry (const VkPicIf * entry)
+{
+  if (entry) {
+    start_object ("VkPicIf");
+    print_integer ("decodeWidth", entry->decodeWidth);  // frame_num(short-term) or LongTermFrameIdx(long-term)
+    print_integer ("decodeHeight", entry->decodeHeight);  // 0=short term reference, 1=long term reference
+    print_integer ("decodeSuperResWidth", entry->decodeSuperResWidth);  // non-existing reference frame (corresponding PicIdx
+    end_object ();
+  }
+}
+
+static void
 dump_parser_h264_dpb_entry (const VkParserH264DpbEntry * entry)
 {
   start_object ("VkParserH264DpbEntry");
-  //VkPicIf* pPicBuf; // ptr to reference frame
+  dump_parser_vk_pic_entry (entry->pPicBuf); // ptr to reference frame
   print_integer ("FrameIdx", entry->FrameIdx);  // frame_num(short-term) or LongTermFrameIdx(long-term)
   print_integer ("is_long_term", entry->is_long_term);  // 0=short term reference, 1=long term reference
   print_integer ("not_existing", entry->not_existing);  // non-existing reference frame (corresponding PicIdx
@@ -963,23 +976,32 @@ dump_parser_h265_picture_data (const VkParserHevcPictureData * data)
   print_integer ("NumPocStCurrAfter", data->NumPocStCurrAfter);
   print_integer ("NumPocLtCurr", data->NumPocLtCurr);
   print_integer ("CurrPicOrderCntVal", data->CurrPicOrderCntVal);
-  // VkPicIf* RefPics[16];
+
+  start_array ("RefPics");
+  for (int i = 0; i < 16; i++)
+    dump_parser_vk_pic_entry (data->RefPics[i]);
+  end_array ();
+
   start_array ("PicOrderCntVal");
   for (int i = 0; i < 16; i++)
     print_integer (NULL, data->PicOrderCntVal[i]);
   end_array ();
+
   start_array ("IsLongTerm");
   for (int i = 0; i < 16; i++)
     print_integer (NULL, data->IsLongTerm[i]); // 1=long-term reference
   end_array ();
+
   start_array ("RefPicSetStCurrBefore");
   for (int i = 0; i < 8; i++)
     print_integer (NULL, data->RefPicSetStCurrBefore[i]);
   end_array ();
+
   start_array ("RefPicSetStCurrAfter");
   for (int i = 0; i < 8; i++)
     print_integer (NULL, data->RefPicSetStCurrAfter[i]);
   end_array ();
+
   start_array ("RefPicSetLtCurr");
   for (int i = 0; i < 8; i++)
     print_integer (NULL, data->RefPicSetLtCurr[i]);
