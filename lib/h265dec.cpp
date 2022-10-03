@@ -19,7 +19,6 @@
 
 #include <atomic>
 
-#include "base.h"
 #include "videoparser.h"
 #include "videoutils.h"
 #include "vulkan_video_codec_h265std.h"
