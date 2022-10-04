@@ -177,7 +177,7 @@ static bool parse(FILE* stream)
     VulkanVideoDecodeParser* parser = nullptr;
     VideoParserClient client = VideoParserClient();
     VkParserInitDecodeParameters params = {
-        .interfaceVersion = VK_MAKE_VIDEO_STD_VERSION(0, 9, 1),
+        .interfaceVersion = NV_VULKAN_VIDEO_PARSER_API_VERSION,
         .pClient = &client,
         .bOutOfBandPictureParameters = true,
     };
@@ -189,7 +189,20 @@ static bool parse(FILE* stream)
 
     fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
 
-    ret = CreateVulkanVideoDecodeParser(&parser, codec, (ParserLogFuncType)printf, 50);
+    static const VkExtensionProperties h264StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_SPEC_VERSION };
+    static const VkExtensionProperties h265StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_SPEC_VERSION };
+
+    const VkExtensionProperties* pStdExtensionVersion = NULL;
+    if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
+        pStdExtensionVersion = &h264StdExtensionVersion;
+    } else if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
+        pStdExtensionVersion = &h265StdExtensionVersion;
+    } else {
+        assert(!"Unsupported Codec Type");
+        return false;
+    }
+
+    ret = CreateVulkanVideoDecodeParser(&parser, codec, pStdExtensionVersion, (nvParserLogFuncType)printf, 50);
     assert(ret);
     if (!ret)
         return ret;

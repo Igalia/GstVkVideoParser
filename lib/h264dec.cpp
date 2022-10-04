@@ -431,15 +431,17 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
     .sar_width = vui->sar_width,
     .sar_height = vui->sar_height,
     .video_format = vui->video_format,
-    .color_primaries = vui->colour_primaries,
+    .colour_primaries = vui->colour_primaries,
     .transfer_characteristics = vui->transfer_characteristics,
     .matrix_coefficients = vui->matrix_coefficients,
     .num_units_in_tick = vui->num_units_in_tick,
     .time_scale = vui->time_scale,
-    .pHrdParameters = hrd ? &vkp->hrd : NULL,
     .max_num_reorder_frames = static_cast<uint8_t>(vui->num_reorder_frames),
     .max_dec_frame_buffering =
         static_cast<uint8_t>(vui->max_dec_frame_buffering),
+    .chroma_sample_loc_type_top_field = vui->chroma_sample_loc_type_top_field,
+    .chroma_sample_loc_type_bottom_field = vui->chroma_sample_loc_type_bottom_field,
+    .pHrdParameters = hrd ? &vkp->hrd : NULL,
   };
 
   vkp->sps = (StdVideoH264SequenceParameterSet) {
@@ -464,18 +466,18 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
       .vui_parameters_present_flag = sps->vui_parameters_present_flag,
     },
     .profile_idc = static_cast<StdVideoH264ProfileIdc>(sps->profile_idc),
-    .level_idc = static_cast<StdVideoH264Level>(sps->level_idc),
-    .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
+    .level_idc = static_cast<StdVideoH264LevelIdc>(sps->level_idc),
     .chroma_format_idc =
         static_cast<StdVideoH264ChromaFormatIdc>(sps->chroma_format_idc),
+    .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
     .bit_depth_luma_minus8 = sps->bit_depth_luma_minus8,
     .bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8,
     .log2_max_frame_num_minus4 = sps->log2_max_frame_num_minus4,
     .pic_order_cnt_type =
         static_cast<StdVideoH264PocType>(sps->pic_order_cnt_type),
-    .log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4,
     .offset_for_non_ref_pic = sps->offset_for_non_ref_pic,
     .offset_for_top_to_bottom_field = sps->offset_for_top_to_bottom_field,
+    .log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4,
     .num_ref_frames_in_pic_order_cnt_cycle =
         sps->num_ref_frames_in_pic_order_cnt_cycle,
     .max_num_ref_frames = static_cast<uint8_t>(sps->num_ref_frames),
@@ -514,9 +516,8 @@ fill_pps (GstH264PPS * pps, VkH264Picture * vkp)
       .constrained_intra_pred_flag = pps->constrained_intra_pred_flag,
       .deblocking_filter_control_present_flag =
           pps->deblocking_filter_control_present_flag,
-      .weighted_bipred_idc_flag = pps->weighted_bipred_idc,
       .weighted_pred_flag = pps->weighted_pred_flag,
-      .pic_order_present_flag = pps->pic_order_present_flag,
+      .bottom_field_pic_order_in_frame_present_flag = 0, //FIXME
       .entropy_coding_mode_flag = pps->entropy_coding_mode_flag,
       .pic_scaling_matrix_present_flag = pps->pic_scaling_matrix_present_flag,
     },

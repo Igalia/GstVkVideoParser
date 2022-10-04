@@ -52,7 +52,7 @@ private:
 
 VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
 {
-    if (!(params && params->interfaceVersion == VK_MAKE_VIDEO_STD_VERSION(0, 9, 1)))
+    if (!(params && params->interfaceVersion == NV_VULKAN_VIDEO_PARSER_API_VERSION))
         return VK_ERROR_INITIALIZATION_FAILED;
 
     if (!params->pClient)
@@ -117,7 +117,9 @@ int32_t GstVideoDecoderParser::Release()
     return m_refCount;
 }
 
-bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCodecOperationFlagBitsKHR codec, ParserLogFuncType logfunc = nullptr, int loglevel = 0)
+bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCodecOperationFlagBitsKHR codec,
+                                   const VkExtensionProperties* pStdExtensionVersion,
+                                   nvParserLogFuncType pParserLogFunc, int logLevel = 0)
 {
     if (!parser)
         return false;
