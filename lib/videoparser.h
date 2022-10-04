@@ -22,6 +22,8 @@
 #include <VulkanVideoParserIf.h>
 
 
-typedef void (*ParserLogFuncType)(const char* format, ...);
+typedef void (*nvParserLogFuncType)(const char* format, ...);
 
-bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser**, VkVideoCodecOperationFlagBitsKHR, ParserLogFuncType, int);
+bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** ppobj, VkVideoCodecOperationFlagBitsKHR eCompression,
+                                   const VkExtensionProperties* pStdExtensionVersion,
+                                   nvParserLogFuncType pParserLogFunc, int logLevel);

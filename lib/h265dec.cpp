@@ -43,6 +43,7 @@ struct _VkH265Picture
 {
   StdVideoH265HrdParameters hrd;
   StdVideoH265SequenceParameterSetVui vui;
+  StdVideoH265ProfileTierLevel profileTierLevel;
   StdVideoH265SequenceParameterSet sps;
   StdVideoH265PictureParameterSet pps;
   StdVideoH265VideoParameterSet vps;
@@ -381,7 +382,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
           .motion_vectors_over_pic_boundaries_flag = sps->vui_params.motion_vectors_over_pic_boundaries_flag,
           .restricted_ref_pic_lists_flag = sps->vui_params.restricted_ref_pic_lists_flag,
         },
-        .aspect_ratio_idc = sps->vui_params.aspect_ratio_idc,
+        .aspect_ratio_idc = static_cast<StdVideoH265AspectRatioIdc>(sps->vui_params.aspect_ratio_idc),
         .sar_width = sps->vui_params.sar_width, //FIXME: 1 with NVidia parser
         .sar_height = sps->vui_params.sar_height, //FIXME: 1 with NVidia parser
         .video_format = sps->vui_params.video_format,
@@ -397,14 +398,26 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .vui_num_units_in_tick = sps->vui_params.num_units_in_tick,
         .vui_time_scale = sps->vui_params.time_scale, //FIXME: 0 with NVidia parser
         .vui_num_ticks_poc_diff_one_minus1 = sps->vui_params.num_ticks_poc_diff_one_minus1,
-        // const StdVideoH265HrdParameters*    pHrdParameters = sps->vui_params., //FIXME: to be used later
         .min_spatial_segmentation_idc = sps->vui_params.min_spatial_segmentation_idc,
         .max_bytes_per_pic_denom = sps->vui_params.max_bytes_per_pic_denom,
         .max_bits_per_min_cu_denom = sps->vui_params.max_bits_per_min_cu_denom,
         .log2_max_mv_length_horizontal = sps->vui_params.log2_max_mv_length_horizontal,
         .log2_max_mv_length_vertical = sps->vui_params.log2_max_mv_length_vertical,
+        .pHrdParameters = nullptr, //FIXME: to be used later
       };
     }
+
+    vkp->profileTierLevel =  (StdVideoH265ProfileTierLevel) {
+      .flags = (StdVideoH265ProfileTierLevelFlags) {
+          .general_tier_flag = sps->profile_tier_level.tier_flag,
+          .general_progressive_source_flag = sps->profile_tier_level.progressive_source_flag,
+          .general_interlaced_source_flag = sps->profile_tier_level.interlaced_source_flag,
+          .general_non_packed_constraint_flag = sps->profile_tier_level.non_packed_constraint_flag,
+          .general_frame_only_constraint_flag = sps->profile_tier_level.frame_only_constraint_flag,
+      },
+      .general_profile_idc = get_profile_idc(static_cast<GstH265ProfileIDC>(sps->profile_tier_level.profile_idc)),
+      .general_level_idc = static_cast<StdVideoH265LevelIdc>(sps->profile_tier_level.level_idc),
+    };
 
     fill_scaling_list (&sps->scaling_list, &vkp->scaling_lists_sps);
 
@@ -412,6 +425,8 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .flags = {
             .sps_temporal_id_nesting_flag = sps->temporal_id_nesting_flag,
             .separate_colour_plane_flag = sps->separate_colour_plane_flag,
+            .conformance_window_flag = sps->conformance_window_flag,
+            .sps_sub_layer_ordering_info_present_flag = sps->sub_layer_ordering_info_present_flag,
             .scaling_list_enabled_flag = sps->scaling_list_enabled_flag,
             .sps_scaling_list_data_present_flag = sps->scaling_list_data_present_flag,
             .amp_enabled_flag = sps->amp_enabled_flag,
@@ -424,19 +439,31 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
             .vui_parameters_present_flag = sps->vui_parameters_present_flag,
             .sps_extension_present_flag = sps->sps_extension_flag,
             .sps_range_extension_flag = sps->sps_range_extension_flag,
+            .transform_skip_rotation_enabled_flag = 0,//Filled if sps_extension_flag
+            .transform_skip_context_enabled_flag = 0,//Filled if sps_extension_flag
+            .implicit_rdpcm_enabled_flag = 0,//Filled if sps_extension_flag
+            .explicit_rdpcm_enabled_flag = 0,//Filled if sps_extension_flag
+            .extended_precision_processing_flag = 0,//Filled if sps_extension_flag
+            .intra_smoothing_disabled_flag = 0,//Filled if sps_extension_flag
+            .high_precision_offsets_enabled_flag = 0,//Filled if sps_extension_flag
+            .persistent_rice_adaptation_enabled_flag = 0,//Filled if sps_extension_flag
+            .cabac_bypass_alignment_enabled_flag = 0,//Filled if sps_extension_flag
             .sps_scc_extension_flag = sps->sps_scc_extension_flag,
             .sps_curr_pic_ref_enabled_flag = sps->sps_scc_extension_params.sps_curr_pic_ref_enabled_flag,
             .palette_mode_enabled_flag = sps->sps_scc_extension_params.palette_mode_enabled_flag,
-            .sps_palette_predictor_initializer_present_flag = sps->sps_scc_extension_params.sps_palette_predictor_initializers_present_flag,
+            .sps_palette_predictor_initializers_present_flag = sps->sps_scc_extension_params.sps_palette_predictor_initializers_present_flag,
             .intra_boundary_filtering_disabled_flag = sps->sps_scc_extension_params.intra_boundary_filtering_disabled_flag,
         },
-        .profile_idc = get_profile_idc(static_cast<GstH265ProfileIDC>(sps->profile_tier_level.profile_idc)),
-        .level_idc = static_cast<StdVideoH265Level>(sps->profile_tier_level.level_idc),
+        .chroma_format_idc = static_cast<StdVideoH265ChromaFormatIdc>(sps->chroma_format_idc),
         .pic_width_in_luma_samples = sps->pic_width_in_luma_samples,
         .pic_height_in_luma_samples = sps->pic_height_in_luma_samples,
+#if GST_CHECK_VERSION(1, 21, 1)
+        .sps_video_parameter_set_id = sps->vps_id,
+#else
+        .sps_video_parameter_set_id = sps->vps ? sps->vps->id : (uint8_t)0,
+#endif        
         .sps_max_sub_layers_minus1 = sps->max_sub_layers_minus1,
         .sps_seq_parameter_set_id = sps->id,
-        .chroma_format_idc = sps->chroma_format_idc,
         .bit_depth_luma_minus8 = sps->bit_depth_luma_minus8,
         .bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8,
         .log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4,
@@ -452,13 +479,21 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .pcm_sample_bit_depth_chroma_minus1 = sps->pcm_sample_bit_depth_chroma_minus1,
         .log2_min_pcm_luma_coding_block_size_minus3 = sps->log2_min_pcm_luma_coding_block_size_minus3,
         .log2_diff_max_min_pcm_luma_coding_block_size = sps->log2_diff_max_min_pcm_luma_coding_block_size,
+        .palette_max_size = 0, // Filled if sps_scc_extension_flag, see above
+        .delta_palette_max_predictor_size = 0,// Filled if sps_scc_extension_flag, see above
+        .motion_vector_resolution_control_idc = 0,// Filled if sps_scc_extension_flag, see above
+        .sps_num_palette_predictor_initializers_minus1 = 0, // Filled if sps_scc_extension_flag, see above
         .conf_win_left_offset = sps->conf_win_left_offset,
         .conf_win_right_offset = sps->conf_win_right_offset,
         .conf_win_top_offset = sps->conf_win_top_offset,
         .conf_win_bottom_offset = sps->conf_win_bottom_offset,
+        .pProfileTierLevel = &vkp->profileTierLevel,
         .pDecPicBufMgr = &vkp->pic_buf_mgr, // FIXME: Not available in the NVidia parser
         .pScalingLists = sps->scaling_list_enabled_flag ? &vkp->scaling_lists_sps : nullptr,
-        // const StdVideoH265PredictorPaletteEntries*    pPredictorPaletteEntries;
+        .pShortTermRefPicSet = nullptr, //FIXME
+        .pLongTermRefPicsSps = nullptr, //FIXME
+        .pSequenceParameterSetVui = &vkp->vui,
+        .pPredictorPaletteEntries = nullptr, //FIXME
     };
 
     if (sps->vps) {
@@ -483,11 +518,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
       vkp->sps.palette_max_size = sps->sps_scc_extension_params.palette_max_size;
       vkp->sps.delta_palette_max_predictor_size = sps->sps_scc_extension_params.delta_palette_max_predictor_size;
       vkp->sps.motion_vector_resolution_control_idc = sps->sps_scc_extension_params.motion_vector_resolution_control_idc;
-      vkp->sps.sps_num_palette_predictor_initializer_minus1 = sps->sps_scc_extension_params.sps_num_palette_predictor_initializer_minus1;
-    }
-
-    if (sps->vui_parameters_present_flag) {
-      vkp->sps.pSequenceParameterSetVui = &vkp->vui;
+      vkp->sps.sps_num_palette_predictor_initializers_minus1 = sps->sps_scc_extension_params.sps_num_palette_predictor_initializer_minus1;
     }
 }
 
@@ -527,14 +558,17 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
       .pps_curr_pic_ref_enabled_flag = pps->pps_scc_extension_params.pps_curr_pic_ref_enabled_flag,
       .residual_adaptive_colour_transform_enabled_flag = pps->pps_scc_extension_params.residual_adaptive_colour_transform_enabled_flag,
       .pps_slice_act_qp_offsets_present_flag = pps->pps_scc_extension_params.pps_slice_act_qp_offsets_present_flag,
-      .pps_palette_predictor_initializer_present_flag = pps->pps_scc_extension_params.pps_palette_predictor_initializers_present_flag,
+      .pps_palette_predictor_initializers_present_flag = pps->pps_scc_extension_params.pps_palette_predictor_initializers_present_flag,
       .monochrome_palette_flag = pps->pps_scc_extension_params.monochrome_palette_flag,
       .pps_range_extension_flag = pps->pps_range_extension_flag,
     },
     .pps_pic_parameter_set_id = static_cast<uint8_t>(pps->id),
 #if GST_CHECK_VERSION(1, 21, 1)
     .pps_seq_parameter_set_id = static_cast<uint8_t>(pps->sps_id), //https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/2575
+#else
+    .pps_seq_parameter_set_id = 0, //FIXME
 #endif
+    //.sps_video_parameter_set_id = pps->vps_id,
     .num_extra_slice_header_bits = pps->num_extra_slice_header_bits,
     .num_ref_idx_l0_default_active_minus1 = pps->num_ref_idx_l0_default_active_minus1,
     .num_ref_idx_l1_default_active_minus1 = pps->num_ref_idx_l1_default_active_minus1,
@@ -542,31 +576,34 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
     .diff_cu_qp_delta_depth = pps->diff_cu_qp_delta_depth,
     .pps_cb_qp_offset = pps->cb_qp_offset,
     .pps_cr_qp_offset = pps->cr_qp_offset,
-    .num_tile_columns_minus1 = pps->num_tile_columns_minus1,
-    .num_tile_rows_minus1 = pps->num_tile_rows_minus1,
     .pps_beta_offset_div2 = pps->beta_offset_div2,
     .pps_tc_offset_div2 = pps->tc_offset_div2,
     .log2_parallel_merge_level_minus2 = pps->log2_parallel_merge_level_minus2,
-    .pScalingLists =  pps->scaling_list_data_present_flag ? &vkp->scaling_lists_pps : nullptr,
     .log2_max_transform_skip_block_size_minus2 = static_cast<uint8_t>(pps->pps_extension_params.log2_max_transform_skip_block_size_minus2),
     .diff_cu_chroma_qp_offset_depth = pps->pps_extension_params.diff_cu_chroma_qp_offset_depth,
     .chroma_qp_offset_list_len_minus1 = pps->pps_extension_params.chroma_qp_offset_list_len_minus1,
-    .cb_qp_offset_list = pps->cb_qp_offset, // FIXME: STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE
-    .cr_qp_offset_list = pps->cr_qp_offset, // FIXME:  STD_VIDEO_H265_CHROMA_QP_OFFSET_LIST_SIZE];
+    //.cb_qp_offset_list = pps->cb_qp_offset, // memcpy above
+    //.cr_qp_offset_list = pps->cr_qp_offset, // memcpy above
     .log2_sao_offset_scale_luma = pps->pps_extension_params.log2_sao_offset_scale_luma,
     .log2_sao_offset_scale_chroma = pps->pps_extension_params.log2_sao_offset_scale_chroma,
     .pps_act_y_qp_offset_plus5 = static_cast<int8_t>(pps->pps_scc_extension_params.pps_act_y_qp_offset_plus5),
     .pps_act_cb_qp_offset_plus5 = static_cast<int8_t>(pps->pps_scc_extension_params.pps_act_cb_qp_offset_plus5),
-    .pps_act_cr_qp_offset_plus5 = static_cast<int8_t>(pps->pps_scc_extension_params.pps_act_cr_qp_offset_plus3),
-    .pps_num_palette_predictor_initializer = pps->pps_scc_extension_params.pps_num_palette_predictor_initializer,
+    .pps_act_cr_qp_offset_plus3 = static_cast<int8_t>(pps->pps_scc_extension_params.pps_act_cr_qp_offset_plus3),
+    .pps_num_palette_predictor_initializers = pps->pps_scc_extension_params.pps_num_palette_predictor_initializer,
     .luma_bit_depth_entry_minus8 = pps->pps_scc_extension_params.luma_bit_depth_entry_minus8,
     .chroma_bit_depth_entry_minus8 = static_cast<uint8_t>(pps->pps_scc_extension_params.chroma_bit_depth_entry_minus8),
-    //const StdVideoH265PredictorPaletteEntries*    pPredictorPaletteEntries,
+    .num_tile_columns_minus1 = pps->num_tile_columns_minus1,
+    .num_tile_rows_minus1 = pps->num_tile_rows_minus1,
+    //.column_width_minus1 = 0,// memcpy above
+    //.row_height_minus1 = 0,// memcpy above
+    .pScalingLists =  pps->scaling_list_data_present_flag ? &vkp->scaling_lists_pps : nullptr,
+    .pPredictorPaletteEntries = nullptr,
   };
 
+  //memcpy(vkp->pps.cb_qp_offset_list, pps->cb_qp_offset, sizeof(vkp->pps.cb_qp_offset_list)); //STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE
+  //memcpy(vkp->pps.cr_qp_offset_list, pps->cr_qp_offset, sizeof(vkp->pps.cr_qp_offset_list)); //STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_ROWS_LIST_SIZE
   memcpy(vkp->pps.column_width_minus1, pps->column_width_minus1, sizeof(vkp->pps.column_width_minus1)); //STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_COLS_LIST_SIZE
-  memcpy(vkp->pps.row_height_minus1, pps->row_height_minus1, sizeof(vkp->pps.row_height_minus1)); //STD_VIDEO_H265_CHROMA_QP_OFFSET_TILE_ROWS_LIST_SIZE
-
+  memcpy(vkp->pps.row_height_minus1, pps->row_height_minus1, sizeof(vkp->pps.row_height_minus1)); 
 }
 
 static void
@@ -587,9 +624,9 @@ fill_vps (GstH265VPS * vps, VkH265Picture * vkp)
     // const StdVideoH265HrdParameters*    pHrdParameters;
   };
 
-  memcpy (vkp->pic_buf_mgr.max_latency_increase_plus1, vps->max_latency_increase_plus1, STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE);
-  memcpy (vkp->pic_buf_mgr.max_dec_pic_buffering_minus1, vps->max_dec_pic_buffering_minus1, STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE);
-  memcpy (vkp->pic_buf_mgr.max_num_reorder_pics, vps->max_num_reorder_pics, STD_VIDEO_H265_SUBLAYERS_MINUS1_LIST_SIZE);
+  memcpy (vkp->pic_buf_mgr.max_latency_increase_plus1, vps->max_latency_increase_plus1, STD_VIDEO_H265_SUBLAYERS_LIST_SIZE);
+  memcpy (vkp->pic_buf_mgr.max_dec_pic_buffering_minus1, vps->max_dec_pic_buffering_minus1, STD_VIDEO_H265_SUBLAYERS_LIST_SIZE);
+  memcpy (vkp->pic_buf_mgr.max_num_reorder_pics, vps->max_num_reorder_pics, STD_VIDEO_H265_SUBLAYERS_LIST_SIZE);
   vkp->vps.pDecPicBufMgr = &vkp->pic_buf_mgr;
 }
 
