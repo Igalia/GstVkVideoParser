@@ -334,6 +334,29 @@ get_profile_idc (GstH265ProfileIDC profile_idc)
 }
 
 static void
+fill_scaling_list(GstH265ScalingList* src, StdVideoH265ScalingLists* dest) {
+  guint i;
+  memcpy (&dest->ScalingList4x4, &src->scaling_lists_4x4,
+      sizeof (dest->ScalingList4x4));
+  memcpy (&dest->ScalingList8x8, &src->scaling_lists_8x8,
+      sizeof (dest->ScalingList8x8));
+  memcpy (&dest->ScalingList16x16, &src->scaling_lists_16x16,
+      sizeof (dest->ScalingList16x16));
+  memcpy (&dest->ScalingList32x32, &src->scaling_lists_32x32,
+      sizeof (dest->ScalingList32x32));
+
+  for (i = 0; i < STD_VIDEO_H265_SCALING_LIST_16X16_NUM_LISTS; i++) {
+    dest->ScalingListDCCoef16x16[i] =
+    src->scaling_list_dc_coef_minus8_16x16[i] + 8;
+  }
+
+  for (i = 0; i < STD_VIDEO_H265_SCALING_LIST_32X32_NUM_LISTS; i++) {
+    dest->ScalingListDCCoef32x32[i] =
+        src->scaling_list_dc_coef_minus8_32x32[i] + 8;
+  }
+}
+
+static void
 fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
 {
     if (sps->vui_parameters_present_flag) {
@@ -382,6 +405,8 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .log2_max_mv_length_vertical = sps->vui_params.log2_max_mv_length_vertical,
       };
     }
+
+    fill_scaling_list (&sps->scaling_list, &vkp->scaling_lists_sps);
 
     vkp->sps = (StdVideoH265SequenceParameterSet) {
         .flags = {
@@ -432,7 +457,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .conf_win_top_offset = sps->conf_win_top_offset,
         .conf_win_bottom_offset = sps->conf_win_bottom_offset,
         .pDecPicBufMgr = &vkp->pic_buf_mgr, // FIXME: Not available in the NVidia parser
-        // const StdVideoH265ScalingLists*               pScalingLists;
+        .pScalingLists = sps->scaling_list_enabled_flag ? &vkp->scaling_lists_sps : nullptr,
         // const StdVideoH265PredictorPaletteEntries*    pPredictorPaletteEntries;
     };
 
@@ -469,6 +494,9 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
 static void
 fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
 {
+
+  fill_scaling_list(&pps->scaling_list, &vkp->scaling_lists_pps);
+
   vkp->pps = (StdVideoH265PictureParameterSet) {
     .flags = {
       .dependent_slice_segments_enabled_flag = pps->dependent_slice_segments_enabled_flag,
@@ -519,7 +547,7 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
     .pps_beta_offset_div2 = pps->beta_offset_div2,
     .pps_tc_offset_div2 = pps->tc_offset_div2,
     .log2_parallel_merge_level_minus2 = pps->log2_parallel_merge_level_minus2,
-    // //const StdVideoH265ScalingLists*               pScalingLists;
+    .pScalingLists =  pps->scaling_list_data_present_flag ? &vkp->scaling_lists_pps : nullptr,
     .log2_max_transform_skip_block_size_minus2 = static_cast<uint8_t>(pps->pps_extension_params.log2_max_transform_skip_block_size_minus2),
     .diff_cu_chroma_qp_offset_depth = pps->pps_extension_params.diff_cu_chroma_qp_offset_depth,
     .chroma_qp_offset_list_len_minus1 = pps->pps_extension_params.chroma_qp_offset_list_len_minus1,
@@ -582,6 +610,13 @@ gst_h265_dec_start_picture (GstH265Decoder * decoder, GstH265Picture * picture,
     fill_sps (sps, vkp);
     fill_pps (pps, vkp);
   }
+  // Following bad/sys/nvcodec/gstnvh265dec.c
+  if (pps->scaling_list_data_present_flag ||
+      (sps->scaling_list_enabled_flag
+          && !sps->scaling_list_data_present_flag)) {
+      fill_scaling_list (&pps->scaling_list, &vkp->scaling_lists_sps);
+      vkp->sps.pScalingLists  = &vkp->scaling_lists_sps;
+    }
 
   vkpic->data = (VkParserPictureData) {
       .PicWidthInMbs = sps->width / 16, // Coded Frame Size
