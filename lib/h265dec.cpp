@@ -361,8 +361,35 @@ static void
 fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
 {
     if (sps->vui_parameters_present_flag) {
+      if (sps->vui_params.hrd_parameters_present_flag) {
+        vkp->hrd = (StdVideoH265HrdParameters) {
+          .flags = (StdVideoH265HrdFlags) {
+                .nal_hrd_parameters_present_flag = sps->vui_params.hrd_params.nal_hrd_parameters_present_flag,
+                .vcl_hrd_parameters_present_flag = sps->vui_params.hrd_params.vcl_hrd_parameters_present_flag,
+                .sub_pic_hrd_params_present_flag = sps->vui_params.hrd_params.sub_pic_hrd_params_present_flag,
+                .sub_pic_cpb_params_in_pic_timing_sei_flag = sps->vui_params.hrd_params.sub_pic_cpb_params_in_pic_timing_sei_flag,
+                .fixed_pic_rate_general_flag = sps->vui_params.hrd_params.fixed_pic_rate_general_flag[0],
+                .fixed_pic_rate_within_cvs_flag = sps->vui_params.hrd_params.fixed_pic_rate_within_cvs_flag[0],
+                .low_delay_hrd_flag = sps->vui_params.hrd_params.low_delay_hrd_flag[0],
+           },
+            .tick_divisor_minus2 = sps->vui_params.hrd_params.tick_divisor_minus2,
+            .du_cpb_removal_delay_increment_length_minus1 = sps->vui_params.hrd_params.du_cpb_removal_delay_increment_length_minus1,
+            .dpb_output_delay_du_length_minus1 = sps->vui_params.hrd_params.dpb_output_delay_du_length_minus1,
+            .bit_rate_scale = sps->vui_params.hrd_params.bit_rate_scale,
+            .cpb_size_scale = sps->vui_params.hrd_params.cpb_size_scale,
+            .cpb_size_du_scale = sps->vui_params.hrd_params.cpb_size_du_scale,
+            .initial_cpb_removal_delay_length_minus1 = sps->vui_params.hrd_params.initial_cpb_removal_delay_length_minus1,
+            .au_cpb_removal_delay_length_minus1 = sps->vui_params.hrd_params.au_cpb_removal_delay_length_minus1,
+            .dpb_output_delay_length_minus1 = sps->vui_params.hrd_params.dpb_output_delay_length_minus1,
+            // .cpb_cnt_minus1[STD_VIDEO_H265_SUBLAYERS_LIST_SIZE] = 0,
+            // .elemental_duration_in_tc_minus1[STD_VIDEO_H265_SUBLAYERS_LIST_SIZE] = 0,
+            .pSubLayerHrdParametersNal = nullptr, //FIXME
+            .pSubLayerHrdParametersVcl = nullptr, //FIXME
+        };
+      }
+
       vkp->vui = (StdVideoH265SequenceParameterSetVui) {
-        .flags = {
+        .flags = (StdVideoH265SpsVuiFlags) {
           .aspect_ratio_info_present_flag = sps->vui_params.aspect_ratio_info_present_flag,
           .overscan_info_present_flag = sps->vui_params.overscan_info_present_flag,
           .overscan_appropriate_flag = sps->vui_params.overscan_appropriate_flag,
@@ -403,7 +430,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         .max_bits_per_min_cu_denom = sps->vui_params.max_bits_per_min_cu_denom,
         .log2_max_mv_length_horizontal = sps->vui_params.log2_max_mv_length_horizontal,
         .log2_max_mv_length_vertical = sps->vui_params.log2_max_mv_length_vertical,
-        .pHrdParameters = nullptr, //FIXME: to be used later
+        .pHrdParameters = &vkp->hrd,
       };
     }
 
