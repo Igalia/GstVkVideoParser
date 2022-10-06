@@ -1095,13 +1095,7 @@ gst_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
       if (vps_cmp (&self->last_vps, vps))
          return;
       self->last_vps = *vps;
-      /* FIXME: The VPS arrives first but the vk video decoder expects the SPS to be provided first. 
-       * NvVkDecoder.cpp +474
-       */
-      if (true) {
-        GST_WARNING_OBJECT (self, "Drop VPS packet, do not update picture parameters for now as it arrives first and SPS is still not available.");
-        return;
-      }
+
       fill_vps (vps, &self->vkp);
       params = (VkPictureParameters) {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_VPS,
