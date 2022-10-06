@@ -77,16 +77,18 @@ bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspac
     if (parsed)
         *parsed = 0;
 
-    auto buffer = gst_buffer_new_memdup(bspacket->pByteStream, bspacket->nDataLength);
-    if (!buffer)
-        return false;
+    if (bspacket->nDataLength) {
+         auto buffer = gst_buffer_new_memdup(bspacket->pByteStream, bspacket->nDataLength);
+        if (!buffer)
+            return false;
 
-    auto ret = gst_video_parser_push_buffer(m_parser, buffer);
-    if (ret != GST_FLOW_OK)
-        return false;
+        auto ret = gst_video_parser_push_buffer(m_parser, buffer);
+        if (ret != GST_FLOW_OK)
+            return false;
+    }
 
     if (bspacket->bEOS) {
-        ret = gst_video_parser_eos(m_parser);
+        auto ret = gst_video_parser_eos(m_parser);
         if (ret != GST_FLOW_EOS)
             return false;
     }
