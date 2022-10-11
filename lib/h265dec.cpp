@@ -1150,6 +1150,8 @@ gst_h265_dec_dispose (GObject * object)
     self->spsclient->Release ();
   if (self->ppsclient)
     self->ppsclient->Release ();
+  if (self->vpsclient)
+    self->vpsclient->Release ();
 
   g_clear_pointer (&self->refs, g_array_unref);
 
