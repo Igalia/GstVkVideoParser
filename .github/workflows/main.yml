@@ -35,6 +35,16 @@ jobs:
       - name: Test
         run: meson test --verbose -C builddir
 
+      - name: Install
+        run:
+          DESTDIR=install ninja -C builddir install
+
+      - name: Create binaries tarball
+        run:
+          pushd builddir/install/;
+          zip ../../release-linux-x64.zip * -r;
+          popd
+
   ci-windows:
     runs-on: windows-latest
     steps:
@@ -44,6 +54,7 @@ jobs:
         run: |
           choco install --yes pkgconfiglite
           choco install --yes gstreamer gstreamer-devel
+          choco install --yes zip
 
       - uses: actions/setup-python@v4
         with:
@@ -63,3 +74,15 @@ jobs:
       # FIXME: test aren't executed
       #- name: Test
       #  run: meson test --verbose -C builddir
+
+      - name: Install
+        run:
+          ninja -C builddir install
+        env:
+          DESTDIR: install
+
+      - name: Create binaries tarball
+        run:
+          pushd builddir/install/;
+          zip ../../release-win64.zip * -r;
+          popd
