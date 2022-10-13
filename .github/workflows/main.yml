@@ -1,9 +1,16 @@
 name: "GstVkVideoParser native build"
 run-name: Native build by ${{ github.actor }}
-on: [pull_request, push, workflow_dispatch]
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
 
 jobs:
-  build:
+  ci-linux:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -11,26 +18,52 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install --assume-yes meson
           # Hack to install libunwind-dev (gstreamer dependency)
           sudo apt remove --assume-yes libunwind-14-dev
-          sudo apt install -V --assume-yes --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev
-          sudo apt install --assume-yes gstreamer1.0-plugins-bad
+          sudo apt install --assume-yes --no-install-recommends meson libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad
 
       - name: Configure
-        run:
-          meson ~/builddir
-
-      - name: Build
+        run: meson setup builddir
         env:
           TERM: dumb
-        run:
-          ninja -C ~/builddir
+
+      - name: Build
+        run: ninja -vC builddir
+        env:
+          TERM: dumb
+
       - name: Test H264
-        run:
-          ~/builddir/test/nvtestapp -c h264 samples/Sample_10.avc
-          ~/builddir/test/testapp -c h264 samples/Sample_10.avc
+        run: |
+          builddir/test/testapp -c h264 samples/Sample_10.avc
+          builddir/test/nvtestapp -c h264 samples/Sample_10.avc
+
       - name: Test H265
-        run:
-          ~/builddir/test/nvtestapp -c h265 samples/Sample_10.hevc
-          ~/builddir/test/testapp -c h265 samples/Sample_10.hevc
+        run: |
+          builddir/test/nvtestapp -c h265 samples/Sample_10.hevc
+          builddir/test/testapp -c h265 samples/Sample_10.hevc
+
+  ci-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          choco install --yes pkgconfiglite
+          choco install --yes gstreamer gstreamer-devel
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install meson
+        run: python -m pip install meson ninja
+
+      - name: Configure
+        run: meson setup --vsenv builddir
+        env:
+          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
+
+      - name: Build
+        run: meson compile --verbose -C builddir
+
