@@ -131,7 +131,7 @@ gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
   VkParserSequenceInfo seqInfo;
   guint dar_n = 0, dar_d = 0;
 
-  seqInfo = (VkParserSequenceInfo) {
+  seqInfo = VkParserSequenceInfo {
     .eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
     .isSVC = profile_is_svc(decoder->input_state->caps),
     .frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info)),
@@ -394,7 +394,7 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
     hrd = &vui->vcl_hrd_parameters;
 
   if (hrd) {
-    vkp->hrd = (StdVideoH264HrdParameters) {
+    vkp->hrd = StdVideoH264HrdParameters {
       .cpb_cnt_minus1 = hrd->cpb_cnt_minus1,
       .bit_rate_scale = hrd->bit_rate_scale,
       .cpb_size_scale = hrd->cpb_size_scale,
@@ -411,7 +411,7 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
         sizeof (vkp->hrd.cpb_size_value_minus1));
   }
 
-  vkp->vui = (StdVideoH264SequenceParameterSetVui) {
+  vkp->vui = StdVideoH264SequenceParameterSetVui {
     .flags = {
       .aspect_ratio_info_present_flag = vui->aspect_ratio_info_present_flag,
       .overscan_info_present_flag = vui->overscan_info_present_flag,
@@ -444,7 +444,7 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
     .pHrdParameters = hrd ? &vkp->hrd : NULL,
   };
 
-  vkp->sps = (StdVideoH264SequenceParameterSet) {
+  vkp->sps = StdVideoH264SequenceParameterSet {
     .flags = {
       .constraint_set0_flag = sps->constraint_set0_flag,
       .constraint_set1_flag = sps->constraint_set1_flag,
@@ -509,7 +509,7 @@ fill_pps (GstH264PPS * pps, VkH264Picture * vkp)
         sizeof (vkp->scaling_lists_pps.ScalingList8x8));
   }
 
-  vkp->pps = (StdVideoH264PictureParameterSet) {
+  vkp->pps = StdVideoH264PictureParameterSet {
     .flags = {
       .transform_8x8_mode_flag = pps->transform_8x8_mode_flag,
       .redundant_pic_cnt_present_flag = pps->redundant_pic_cnt_present_flag,
@@ -547,7 +547,7 @@ fill_dbp_entry (VkParserH264DpbEntry * entry, GstH264Picture * picture)
     return;
   }
 
-  *entry = (VkParserH264DpbEntry) {
+  *entry = VkParserH264DpbEntry {
     .pPicBuf = vkpic->pic,
     .FrameIdx = GST_H264_PICTURE_IS_LONG_TERM_REF (picture) ? picture->long_term_pic_num : picture->pic_num,
     .is_long_term = GST_H264_PICTURE_IS_LONG_TERM_REF (picture),
@@ -605,7 +605,7 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
     fill_pps (pps, vkp);
   }
 
-  vkpic->data = (VkParserPictureData) {
+  vkpic->data = VkParserPictureData {
     .PicWidthInMbs = sps->width / 16, // Coded Frame Size
     .FrameHeightInMbs = sps->height / 16, // Coded Frame Height
     .pCurrPic = vkpic->pic,
@@ -634,7 +634,7 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
   };
 
   VkParserH264PictureData *h264 = &vkpic->data.CodecSpecific.h264;
-  *h264 = (VkParserH264PictureData) {
+  *h264 = VkParserH264PictureData {
     .pStdSps = &vkp->sps,
     .pSpsClientObject = self->spsclient,
     .pStdPps = &vkp->pps,
@@ -845,7 +845,7 @@ gst_h264_dec_update_picture_parameters (GstH264Decoder * decoder,
         return;
       self->last_sps = *sps;
       fill_sps (sps, &self->vkp);
-      params = (VkPictureParameters) {
+      params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_SPS,
         .pH264Sps = &self->vkp.sps,
         .updateSequenceCount = self->sps_update_count++,
@@ -863,7 +863,7 @@ gst_h264_dec_update_picture_parameters (GstH264Decoder * decoder,
         return;
       self->last_pps = *pps;
       fill_pps (pps, &self->vkp);
-      params = (VkPictureParameters) {
+      params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H264_PPS,
         .pH264Pps = &self->vkp.pps,
         .updateSequenceCount = self->pps_update_count++,

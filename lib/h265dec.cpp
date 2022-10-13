@@ -150,7 +150,7 @@ gst_h265_dec_new_sequence (GstH265Decoder * decoder, const GstH265SPS * sps,
   VkParserSequenceInfo seqInfo;
   guint dar_n = 0, dar_d = 0;
 
-  seqInfo = (VkParserSequenceInfo) {
+  seqInfo = VkParserSequenceInfo {
     .eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT,
     .isSVC = profile_is_svc(decoder->input_state->caps),
     .frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info)),
@@ -362,8 +362,8 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
 {
     if (sps->vui_parameters_present_flag) {
       if (sps->vui_params.hrd_parameters_present_flag) {
-        vkp->hrd = (StdVideoH265HrdParameters) {
-          .flags = (StdVideoH265HrdFlags) {
+        vkp->hrd = StdVideoH265HrdParameters {
+          .flags = StdVideoH265HrdFlags {
                 .nal_hrd_parameters_present_flag = sps->vui_params.hrd_params.nal_hrd_parameters_present_flag,
                 .vcl_hrd_parameters_present_flag = sps->vui_params.hrd_params.vcl_hrd_parameters_present_flag,
                 .sub_pic_hrd_params_present_flag = sps->vui_params.hrd_params.sub_pic_hrd_params_present_flag,
@@ -388,8 +388,8 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
         };
       }
 
-      vkp->vui = (StdVideoH265SequenceParameterSetVui) {
-        .flags = (StdVideoH265SpsVuiFlags) {
+      vkp->vui = StdVideoH265SequenceParameterSetVui {
+        .flags = StdVideoH265SpsVuiFlags {
           .aspect_ratio_info_present_flag = sps->vui_params.aspect_ratio_info_present_flag,
           .overscan_info_present_flag = sps->vui_params.overscan_info_present_flag,
           .overscan_appropriate_flag = sps->vui_params.overscan_appropriate_flag,
@@ -434,8 +434,8 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
       };
     }
 
-    vkp->profileTierLevel =  (StdVideoH265ProfileTierLevel) {
-      .flags = (StdVideoH265ProfileTierLevelFlags) {
+    vkp->profileTierLevel =  StdVideoH265ProfileTierLevel {
+      .flags = StdVideoH265ProfileTierLevelFlags {
           .general_tier_flag = sps->profile_tier_level.tier_flag,
           .general_progressive_source_flag = sps->profile_tier_level.progressive_source_flag,
           .general_interlaced_source_flag = sps->profile_tier_level.interlaced_source_flag,
@@ -448,7 +448,7 @@ fill_sps(GstH265SPS* sps, VkH265Picture* vkp)
 
     fill_scaling_list (&sps->scaling_list, &vkp->scaling_lists_sps);
 
-    vkp->sps = (StdVideoH265SequenceParameterSet) {
+    vkp->sps = StdVideoH265SequenceParameterSet {
         .flags = {
             .sps_temporal_id_nesting_flag = sps->temporal_id_nesting_flag,
             .separate_colour_plane_flag = sps->separate_colour_plane_flag,
@@ -555,7 +555,7 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
 
   fill_scaling_list(&pps->scaling_list, &vkp->scaling_lists_pps);
 
-  vkp->pps = (StdVideoH265PictureParameterSet) {
+  vkp->pps = StdVideoH265PictureParameterSet {
     .flags = {
       .dependent_slice_segments_enabled_flag = pps->dependent_slice_segments_enabled_flag,
       .output_flag_present_flag = pps->output_flag_present_flag,
@@ -636,7 +636,7 @@ fill_pps (GstH265PPS * pps, VkH265Picture * vkp)
 static void
 fill_vps (GstH265VPS * vps, VkH265Picture * vkp)
 {
-  vkp->vps = (StdVideoH265VideoParameterSet) {
+  vkp->vps = StdVideoH265VideoParameterSet {
     .flags = {
       .vps_temporal_id_nesting_flag = vps->temporal_id_nesting_flag,
       .vps_sub_layer_ordering_info_present_flag = vps->sub_layer_ordering_info_present_flag,
@@ -682,7 +682,7 @@ gst_h265_dec_start_picture (GstH265Decoder * decoder, GstH265Picture * picture,
       vkp->sps.pScalingLists  = &vkp->scaling_lists_sps;
     }
 
-  vkpic->data = (VkParserPictureData) {
+  vkpic->data = VkParserPictureData {
       .PicWidthInMbs = sps->width / 16, // Coded Frame Size
       .FrameHeightInMbs = sps->height / 16, // Coded Frame Height
       .pCurrPic = vkpic->pic,
@@ -709,7 +709,7 @@ gst_h265_dec_start_picture (GstH265Decoder * decoder, GstH265Picture * picture,
   };
 
   VkParserHevcPictureData *h265 = &vkpic->data.CodecSpecific.hevc;
-  *h265 = (VkParserHevcPictureData) {
+  *h265 = VkParserHevcPictureData {
       .pStdVps = &vkp->vps,
       .pVpsClientObject = self->vpsclient,
       .pStdSps = &vkp->sps,
@@ -1087,7 +1087,7 @@ gst_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
         return;
       self->last_sps = *sps;
       fill_sps (sps, &self->vkp);
-      params = (VkPictureParameters) {
+      params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_SPS,
         .pH265Sps = &self->vkp.sps,
         .updateSequenceCount = self->sps_update_count++,
@@ -1105,7 +1105,7 @@ gst_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
         return;
       self->last_pps = *pps;
       fill_pps (pps, &self->vkp);
-      params = (VkPictureParameters) {
+      params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_PPS,
         .pH265Pps = &self->vkp.pps,
         .updateSequenceCount = self->pps_update_count++,
@@ -1124,7 +1124,7 @@ gst_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
       self->last_vps = *vps;
 
       fill_vps (vps, &self->vkp);
-      params = (VkPictureParameters) {
+      params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_VPS,
         .pH265Vps = &self->vkp.vps,
         .updateSequenceCount = self->pps_update_count++,
