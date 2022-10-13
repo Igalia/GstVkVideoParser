@@ -117,14 +117,14 @@ gst_video_parser_constructed (GObject * object)
   if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
     parser_name = "h264parse";
     src_caps_desc = "video/x-h264,stream-format=byte-stream";
-    decoder = g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
-        "oob-pic-params", self->oob_pic_params, NULL);
+    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
+        "oob-pic-params", self->oob_pic_params, NULL));
     g_assert (decoder);
   } else if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
     parser_name = "h265parse";
     src_caps_desc = "video/x-h265,stream-format=byte-stream";
-    decoder = g_object_new (GST_TYPE_H265_DEC, "user-data", self->user_data,
-        "oob-pic-params", self->oob_pic_params, NULL);
+    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_H265_DEC, "user-data", self->user_data,
+        "oob-pic-params", self->oob_pic_params, NULL));
     g_assert (decoder);
   }
   else {
@@ -172,7 +172,7 @@ gst_video_parser_set_property (GObject * object, guint property_id,
       self->user_data = g_value_get_pointer (value);
       break;
     case PROP_CODEC:
-      self->codec = g_value_get_uint (value);
+      self->codec = static_cast<VkVideoCodecOperationFlagBitsKHR>(g_value_get_uint (value));
       break;
     case PROP_OOB_PIC_PARAMS:
       self->oob_pic_params = g_value_get_boolean (value);
@@ -194,19 +194,19 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_USER_DATA,
       g_param_spec_pointer ("user-data", "user-data", "user-data",
-          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+          static_cast<GParamFlags>(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
 
   g_object_class_install_property (gobject_class, PROP_CODEC,
       g_param_spec_uint ("codec", "codec", "codec",
           VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
           VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT,
           VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
-          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+          static_cast<GParamFlags>(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
 
   g_object_class_install_property (gobject_class,
       PROP_OOB_PIC_PARAMS, g_param_spec_boolean ("oob-pic-params",
           "oob-pic-params", "oop-pic-params", FALSE,
-          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+          static_cast<GParamFlags>(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY)));
 }
 
 static void
