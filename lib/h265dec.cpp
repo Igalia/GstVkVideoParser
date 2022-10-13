@@ -16,6 +16,7 @@
  */
 
 #include "h265dec.h"
+#include "glib_compat.h"
 
 #include <atomic>
 
