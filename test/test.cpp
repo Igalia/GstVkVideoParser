@@ -15,6 +15,8 @@
  * permissions and limitations under the License.
  */
 
+#include <glib.h>
+
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
@@ -29,8 +31,6 @@
 #include <vk_video/vulkan_video_codecs_common.h>
 #include <vulkan/vulkan_beta.h>
 
-#include <sys/syscall.h>
-#include <unistd.h>
 
 static VkVideoCodecOperationFlagBitsKHR codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
 
@@ -105,7 +105,7 @@ public:
     {
         int32_t max = 16, conf = 1;
 
-        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "%s\n", __FUNCTION__);
 
         dump_parser_sequence_info(info);
 
@@ -122,7 +122,7 @@ public:
 
     bool AllocPictureBuffer(VkPicIf** pic) final
     {
-        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "%s\n", __FUNCTION__);
 
         for (auto& apic : m_dpb) {
             if (apic.isAvailable()) {
@@ -137,7 +137,7 @@ public:
 
     bool DecodePicture(VkParserPictureData* pic) final
     {
-        fprintf(stdout, "[%lu] %s - %" PRIu32 "\n", syscall(SYS_gettid), __FUNCTION__, pic->nBitstreamDataLen);
+        fprintf(stdout, "%s - %" PRIu32 "\n", __FUNCTION__, pic->nBitstreamDataLen);
         dump_parser_picture_data(codec, pic);
         return true;
     }
@@ -145,7 +145,7 @@ public:
     bool UpdatePictureParameters(VkPictureParameters* params, VkSharedBaseObj<VkParserVideoRefCountBase>& shared, uint64_t count) final
     {
         // fprintf(stdout, "%s: %" PRIu64 "\n", __FUNCTION__, count);
-        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "%s\n", __FUNCTION__);
         shared = PictureParameterSet::create();
         dump_picture_parameters(params);
         return true;
@@ -153,7 +153,7 @@ public:
 
     bool DisplayPicture(VkPicIf* pic, int64_t ts) final
     {
-        fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+        fprintf(stdout, "%s\n", __FUNCTION__);
         return true;
     }
 
@@ -187,7 +187,7 @@ static bool parse(FILE* stream)
     int32_t parsed;
     VkParserBitstreamPacket pkt;
 
-    fprintf(stdout, "[%lu] %s\n", syscall(SYS_gettid), __FUNCTION__);
+    fprintf(stdout, "%s\n", __FUNCTION__);
 
     static const VkExtensionProperties h264StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_SPEC_VERSION };
     static const VkExtensionProperties h265StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_SPEC_VERSION };
@@ -216,7 +216,7 @@ static bool parse(FILE* stream)
         read = fread(buf, 1, BUFSIZ, stream);
         if (read <= 0)
             break;
-        pkt = (VkParserBitstreamPacket) {
+        pkt = VkParserBitstreamPacket {
             .pByteStream = buf,
             .nDataLength = static_cast<int32_t>(read),
             .bEOS = read < BUFSIZ,
@@ -235,31 +235,11 @@ static bool parse(FILE* stream)
     return ret;
 }
 
-int main(int argc, char** argv)
-{
-    int opt;
+int process_file (gchar* filename) {
     FILE* file;
-
-    while ((opt = getopt (argc, argv, "c:")) != -1) {
-        switch (opt) {
-        case 'c':
-            if (strcmp (optarg, "h265") == 0)
-                codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
-            break;
-        default:
-            fprintf (stdout, "%s [-c {h264|h265}] filename\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-    }
-
-    if (optind >= argc) {
-        fprintf (stdout, "Missing media file.\n");
-        return EXIT_FAILURE;
-    }
-
-    file = fopen(argv[optind], "r");
+    file = fopen(filename, "r");
     if (!file) {
-        fprintf(stdout, "Unable to open: %s -- %s.\n", argv[1], strerror(errno));
+        g_printerr( "Unable to open: %s -- %s.\n", filename, strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -270,4 +250,52 @@ int main(int argc, char** argv)
 
     fclose(file);
     return EXIT_SUCCESS;
+}
+
+int main(int argc, char** argv)
+{
+    GOptionContext *ctx;
+    GError *err = NULL;
+    gchar **filenames = NULL;
+    gchar *codec_str = NULL;
+    gint ret = EXIT_SUCCESS;
+
+    static GOptionEntry entries[] = {
+        { "codec", 'c', 0, G_OPTION_ARG_STRING, &codec_str, "Codec to use ie h265", NULL },
+        {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &filenames, NULL},
+        { NULL }
+    };
+
+    g_set_prgname (argv[0]);
+
+    ctx = g_option_context_new ("TEST");
+    g_option_context_add_main_entries (ctx, entries, NULL);
+
+
+    if (argc == 1) {
+        g_print ("%s", g_option_context_get_help (ctx, FALSE, NULL));
+        exit (EXIT_FAILURE);;
+    }
+
+    if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
+        g_printerr ("Error initializing: %s\n", err->message);
+        g_option_context_free (ctx);
+        g_clear_error (&err);
+        exit (EXIT_FAILURE);
+    }
+
+    if (filenames == NULL || *filenames == NULL) {
+        g_printerr ("Please provide one or more filenames.");
+        exit (EXIT_FAILURE);;
+    }
+
+    if (codec_str && strcmp (codec_str, "h265") == 0)
+      codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
+
+    int num = g_strv_length (filenames);
+
+    for (int i = 0; i < num; ++i)
+        ret |= process_file (filenames[i]);
+
+    return ret;
 }
