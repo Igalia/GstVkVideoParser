@@ -21,6 +21,9 @@
 #include <gst/codecparsers/gsth264parser.h>
 #include <vk_video/vulkan_video_codecs_common.h>
 
+GST_DEBUG_CATEGORY_EXTERN (gst_video_parser_debug);
+#define GST_CAT_DEFAULT gst_video_parser_debug
+
 class GstVideoDecoderParser : public VulkanVideoDecodeParser {
 public:
     GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)

@@ -4,7 +4,7 @@ sources = [
   'videoparser.cpp',
   'h264dec.cpp',
   'h265dec.cpp',
-  'pipeline.c',
+  'pipeline.cpp',
   'videoutils.c',
   'codecs/gsth264decoder.c',
   'codecs/gsth264picture.c',
