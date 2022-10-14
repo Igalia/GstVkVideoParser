@@ -23,19 +23,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_VIDEO_PARSER gst_video_parser_get_type()
+#define GST_TYPE_VK_VIDEO_PARSER gst_vk_video_parser_get_type()
 
-G_DECLARE_FINAL_TYPE (GstVideoParser, gst_video_parser, GST, VIDEO_PARSER, GstObject)
+G_DECLARE_FINAL_TYPE (GstVkVideoParser, gst_vk_video_parser, GST, VK_VIDEO_PARSER, GstObject)
 
-GstVideoParser *         gst_video_parser_new         (gpointer user_data,
+GstVkVideoParser *         gst_vk_video_parser_new         (gpointer user_data,
                                                        VkVideoCodecOperationFlagBitsKHR codec,
                                                        gboolean oob_pic_params);
 
-GstFlowReturn            gst_video_parser_push_buffer (GstVideoParser *self,
+GstFlowReturn            gst_vk_video_parser_push_buffer (GstVkVideoParser *self,
 						       GstBuffer *buffer);
 
-GstFlowReturn            gst_video_parser_eos         (GstVideoParser *self);
+GstFlowReturn            gst_vk_video_parser_eos         (GstVkVideoParser *self);
 
-gboolean                 gst_video_parser_is_ready     (GstVideoParser *self);
+gboolean                 gst_vk_video_parser_is_ready     (GstVkVideoParser *self);
 
 G_END_DECLS
