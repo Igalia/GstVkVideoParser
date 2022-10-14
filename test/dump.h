@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "videoparser.h"
+#include "vkvideodecodeparser.h"
 
 void dump_parser_sequence_info(const struct VkParserSequenceInfo*);
 void dump_parser_picture_data(VkVideoCodecOperationFlagBitsKHR codec, struct VkParserPictureData*);

@@ -15,20 +15,19 @@
  * permissions and limitations under the License.
  */
 
-#include "h264dec.h"
+#include "gstvkh264dec.h"
 #include "glib_compat.h"
 
-#include <atomic>
 
-#include "videoparser.h"
+#include "vkvideodecodeparser.h"
 #include "videoutils.h"
 
-#define GST_H264_DEC(obj)           ((GstH264Dec *) obj)
-#define GST_H264_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), G_TYPE_FROM_INSTANCE(obj), GstH264DecClass))
-#define GST_H264_DEC_CLASS(klass)   ((GstH264DecClass *) klass)
+#define GST_VK_H264_DEC(obj)           ((GstVkH264Dec *) obj)
+#define GST_VK_H264_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), G_TYPE_FROM_INSTANCE(obj), GstVkH264DecClass))
+#define GST_VK_H264_DEC_CLASS(klass)   ((GstVkH264DecClass *) klass)
 
-GST_DEBUG_CATEGORY_EXTERN (gst_video_parser_debug);
-#define GST_CAT_DEFAULT gst_video_parser_debug
+GST_DEBUG_CATEGORY_EXTERN (gst_vk_video_parser_debug);
+#define GST_CAT_DEFAULT gst_vk_video_parser_debug
 
 static GstStaticPadTemplate sink_factory =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -49,8 +48,8 @@ struct _VkH264Picture
   int32_t offset_for_ref_frame[255];
 };
 
-typedef struct _GstH264Dec GstH264Dec;
-struct _GstH264Dec
+typedef struct _GstVkH264Dec GstVkH264Dec;
+struct _GstVkH264Dec
 {
   GstH264Decoder parent;
   VkParserVideoDecodeClient *client;
@@ -85,7 +84,7 @@ enum
   PROP_OOB_PIC_PARAMS,
 };
 
-G_DEFINE_TYPE(GstH264Dec, gst_h264_dec, GST_TYPE_H264_DECODER)
+G_DEFINE_TYPE(GstVkH264Dec, gst_vk_h264_dec, GST_TYPE_H264_DECODER)
 
 static gpointer parent_class = NULL;
 
@@ -123,10 +122,10 @@ profile_is_svc (GstCaps * caps)
 }
 
 static GstFlowReturn
-gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
+gst_vk_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
     gint max_dpb_size)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   GstVideoDecoder *dec = GST_VIDEO_DECODER (decoder);
   GstVideoCodecState *state;
   VkParserSequenceInfo seqInfo;
@@ -194,7 +193,7 @@ gst_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
 }
 
 static GstFlowReturn
-gst_h264_dec_decode_slice (GstH264Decoder * decoder, GstH264Picture * picture,
+gst_vk_h264_dec_decode_slice (GstH264Decoder * decoder, GstH264Picture * picture,
     GstH264Slice * slice, GArray * ref_pic_list0, GArray * ref_pic_list1)
 {
   VkPic *vkpic = static_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
@@ -216,10 +215,10 @@ gst_h264_dec_decode_slice (GstH264Decoder * decoder, GstH264Picture * picture,
 }
 
 static GstFlowReturn
-gst_h264_dec_new_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
+gst_vk_h264_dec_new_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
     GstH264Picture * picture)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPicIf *pic = nullptr;
   VkPic *vkpic;
 
@@ -237,10 +236,10 @@ gst_h264_dec_new_picture (GstH264Decoder * decoder, GstVideoCodecFrame * frame,
 }
 
 static GstFlowReturn
-gst_h264_dec_new_field_picture (GstH264Decoder * decoder,
+gst_vk_h264_dec_new_field_picture (GstH264Decoder * decoder,
     GstH264Picture * first_field, GstH264Picture * second_field)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPicIf *pic = nullptr;
   VkPic *vkpic;
 
@@ -256,10 +255,10 @@ gst_h264_dec_new_field_picture (GstH264Decoder * decoder,
 }
 
 static GstFlowReturn
-gst_h264_dec_output_picture (GstH264Decoder * decoder,
+gst_vk_h264_dec_output_picture (GstH264Decoder * decoder,
     GstVideoCodecFrame * frame, GstH264Picture * picture)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));;
 
   if (self->client) {
@@ -275,9 +274,9 @@ gst_h264_dec_output_picture (GstH264Decoder * decoder,
 }
 
 static GstFlowReturn
-gst_h264_dec_end_picture (GstH264Decoder * decoder, GstH264Picture * picture)
+gst_vk_h264_dec_end_picture (GstH264Decoder * decoder, GstH264Picture * picture)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h264_picture_get_user_data(picture));
   gsize len;
   uint32_t *slice_offsets;
@@ -589,10 +588,10 @@ fill_dbp_entry (VkParserH264DpbEntry * entry, GstH264Picture * picture)
 }
 
 static GstFlowReturn
-gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
+gst_vk_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
     GstH264Slice * slice, GstH264Dpb * dpb)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPic *vkpic =
       reinterpret_cast <VkPic *>(gst_h264_picture_get_user_data (picture));
   VkH264Picture *vkp = &self->vkp;
@@ -701,10 +700,10 @@ gst_h264_dec_start_picture (GstH264Decoder * decoder, GstH264Picture * picture,
 }
 
 static void
-gst_h264_dec_unhandled_nalu (GstH264Decoder * decoder, const guint8 * data,
+gst_vk_h264_dec_unhandled_nalu (GstH264Decoder * decoder, const guint8 * data,
     guint32 size)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
 
   if (self->client)
     self->client->UnhandledNALU (data, size);
@@ -833,10 +832,10 @@ pps_cmp (GstH264PPS * a, GstH264PPS * b)
 }
 
 static void
-gst_h264_dec_update_picture_parameters (GstH264Decoder * decoder,
+gst_vk_h264_dec_update_picture_parameters (GstH264Decoder * decoder,
     GstH264NalUnitType type, const gpointer nalu)
 {
-  GstH264Dec *self = GST_H264_DEC (decoder);
+  GstVkH264Dec *self = GST_VK_H264_DEC (decoder);
   VkPictureParameters params;
 
   switch (type) {
@@ -882,9 +881,9 @@ gst_h264_dec_update_picture_parameters (GstH264Decoder * decoder,
 }
 
 static void
-gst_h264_dec_dispose (GObject * object)
+gst_vk_h264_dec_dispose (GObject * object)
 {
-  GstH264Dec *self = GST_H264_DEC (object);
+  GstVkH264Dec *self = GST_VK_H264_DEC (object);
 
   if (self->spsclient)
     self->spsclient->Release ();
@@ -897,10 +896,10 @@ gst_h264_dec_dispose (GObject * object)
 }
 
 static void
-gst_h264_dec_set_property (GObject * object, guint property_id,
+gst_vk_h264_dec_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstH264Dec *self = GST_H264_DEC (object);
+  GstVkH264Dec *self = GST_VK_H264_DEC (object);
 
   switch (property_id) {
     case PROP_USER_DATA:
@@ -917,7 +916,7 @@ gst_h264_dec_set_property (GObject * object, guint property_id,
 }
 
 static void
-gst_h264_dec_class_init (GstH264DecClass * klass)
+gst_vk_h264_dec_class_init (GstVkH264DecClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
@@ -930,19 +929,19 @@ gst_h264_dec_class_init (GstH264DecClass * klass)
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&src_factory));
 
-  gobject_class->dispose = gst_h264_dec_dispose;
-  gobject_class->set_property = gst_h264_dec_set_property;
+  gobject_class->dispose = gst_vk_h264_dec_dispose;
+  gobject_class->set_property = gst_vk_h264_dec_set_property;
 
-  h264decoder_class->new_sequence = gst_h264_dec_new_sequence;
-  h264decoder_class->decode_slice = gst_h264_dec_decode_slice;
-  h264decoder_class->new_picture = gst_h264_dec_new_picture;
-  h264decoder_class->output_picture = gst_h264_dec_output_picture;
-  h264decoder_class->start_picture = gst_h264_dec_start_picture;
-  h264decoder_class->end_picture = gst_h264_dec_end_picture;
-  h264decoder_class->new_field_picture = gst_h264_dec_new_field_picture;
-  h264decoder_class->unhandled_nalu = gst_h264_dec_unhandled_nalu;
+  h264decoder_class->new_sequence = gst_vk_h264_dec_new_sequence;
+  h264decoder_class->decode_slice = gst_vk_h264_dec_decode_slice;
+  h264decoder_class->new_picture = gst_vk_h264_dec_new_picture;
+  h264decoder_class->output_picture = gst_vk_h264_dec_output_picture;
+  h264decoder_class->start_picture = gst_vk_h264_dec_start_picture;
+  h264decoder_class->end_picture = gst_vk_h264_dec_end_picture;
+  h264decoder_class->new_field_picture = gst_vk_h264_dec_new_field_picture;
+  h264decoder_class->unhandled_nalu = gst_vk_h264_dec_unhandled_nalu;
   h264decoder_class->update_picture_parameters =
-      gst_h264_dec_update_picture_parameters;
+      gst_vk_h264_dec_update_picture_parameters;
 
   g_object_class_install_property (gobject_class, PROP_USER_DATA,
       g_param_spec_pointer ("user-data", "user-data", "user-data",
@@ -955,7 +954,7 @@ gst_h264_dec_class_init (GstH264DecClass * klass)
 }
 
 static void
-gst_h264_dec_init (GstH264Dec * self)
+gst_vk_h264_dec_init (GstVkH264Dec * self)
 {
   gst_h264_decoder_set_process_ref_pic_lists (GST_H264_DECODER (self), FALSE);
 

@@ -1,10 +1,10 @@
 pkgconfig = import('pkgconfig')
 
 sources = files(
-  'videoparser.cpp',
-  'h264dec.cpp',
-  'h265dec.cpp',
-  'pipeline.cpp',
+  'vkvideodecodeparser.cpp',
+  'gstvkh264dec.cpp',
+  'gstvkh265dec.cpp',
+  'gstvkvideoparser.cpp',
   'videoutils.c',
   'codecs/gsth264decoder.c',
   'codecs/gsth264picture.c',
@@ -13,7 +13,7 @@ sources = files(
 )
 
 videoparser_headers = files(
-  'videoparser.h',
+  'gstvkvideoparser.h',
 )
 gst_req = '>= 1.20'
 gst_dep = dependency('gstreamer-1.0', version: gst_req)

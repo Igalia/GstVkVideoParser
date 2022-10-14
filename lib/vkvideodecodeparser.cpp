@@ -15,18 +15,19 @@
  * permissions and limitations under the License.
  */
 
-#include "videoparser.h"
-#include "pipeline.h"
+#include "vkvideodecodeparser.h"
+#include "gstvkvideoparser.h"
 
 #include <gst/codecparsers/gsth264parser.h>
 #include <vk_video/vulkan_video_codecs_common.h>
 
-GST_DEBUG_CATEGORY_EXTERN (gst_video_parser_debug);
-#define GST_CAT_DEFAULT gst_video_parser_debug
 
-class GstVideoDecoderParser : public VulkanVideoDecodeParser {
+GST_DEBUG_CATEGORY_EXTERN (gst_vk_video_parser_debug);
+#define GST_CAT_DEFAULT gst_vk_video_parser_debug
+
+class GstVkVideoDecoderParser : public VulkanVideoDecodeParser {
 public:
-    GstVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
+    GstVkVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
         : m_refCount(1)
         , m_codec(codec)
         , m_parser(nullptr)
@@ -46,14 +47,14 @@ public:
     int32_t Release() final;
 
 private:
-    ~GstVideoDecoderParser() {}
+    ~GstVkVideoDecoderParser() {}
 
     int m_refCount;
     VkVideoCodecOperationFlagBitsKHR m_codec;
-    GstVideoParser* m_parser;
+    GstVkVideoParser* m_parser;
 };
 
-VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
+VkResult GstVkVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
 {
     if (!(params && params->interfaceVersion == NV_VULKAN_VIDEO_PARSER_API_VERSION))
         return VK_ERROR_INITIALIZATION_FAILED;
@@ -64,20 +65,20 @@ VkResult GstVideoDecoderParser::Initialize(VkParserInitDecodeParameters* params)
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
 
-    m_parser = gst_video_parser_new(params->pClient, m_codec, params->bOutOfBandPictureParameters);
-    if (!gst_video_parser_is_ready(m_parser))
+    m_parser = gst_vk_video_parser_new(params->pClient, m_codec, params->bOutOfBandPictureParameters);
+    if (!gst_vk_video_parser_is_ready(m_parser))
         return VK_ERROR_INITIALIZATION_FAILED;
 
     return VK_SUCCESS;
 }
 
-bool GstVideoDecoderParser::Deinitialize()
+bool GstVkVideoDecoderParser::Deinitialize()
 {
     gst_clear_object(&m_parser);
     return true;
 }
 
-bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspacket, int32_t* parsed)
+bool GstVkVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspacket, int32_t* parsed)
 {
     if (parsed)
         *parsed = 0;
@@ -87,13 +88,13 @@ bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspac
         if (!buffer)
             return false;
 
-        auto ret = gst_video_parser_push_buffer(m_parser, buffer);
+        auto ret = gst_vk_video_parser_push_buffer(m_parser, buffer);
         if (ret != GST_FLOW_OK)
             return false;
     }
 
     if (bspacket->bEOS) {
-        auto ret = gst_video_parser_eos(m_parser);
+        auto ret = gst_vk_video_parser_eos(m_parser);
         if (ret != GST_FLOW_EOS)
             return false;
     }
@@ -104,13 +105,13 @@ bool GstVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bspac
     return true;
 }
 
-int32_t GstVideoDecoderParser::AddRef()
+int32_t GstVkVideoDecoderParser::AddRef()
 {
     g_atomic_int_inc(&m_refCount);
     return m_refCount;
 }
 
-int32_t GstVideoDecoderParser::Release()
+int32_t GstVkVideoDecoderParser::Release()
 {
     if (g_atomic_int_dec_and_test(&m_refCount)) {
         Deinitialize();
@@ -131,7 +132,7 @@ bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** parser, VkVideoCode
     if (!parser)
         return false;
 
-    auto* internalParser = new GstVideoDecoderParser(codec);
+    auto* internalParser = new GstVkVideoDecoderParser(codec);
     if (!internalParser)
         return false;
 

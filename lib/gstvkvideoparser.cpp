@@ -1,4 +1,4 @@
-/* VideoParser
+/* VkVideoParser
  * Copyright (C) 2022 Igalia, S.L.
  *     Author: Víctor Jáquez <vjaquez@igalia.com>
  *
@@ -15,14 +15,14 @@
  * permissions and limitations under the License.
  */
 
-#include "pipeline.h"
+#include "gstvkvideoparser.h"
 
 #include <gst/check/gstharness.h>
 
-#include "h264dec.h"
-#include "h265dec.h"
+#include "gstvkh264dec.h"
+#include "gstvkh265dec.h"
 
-struct _GstVideoParser
+struct _GstVkVideoParser
 {
   GstObject parent;
   gpointer user_data;
@@ -40,15 +40,17 @@ enum
   PROP_OOB_PIC_PARAMS,
 };
 
-GST_DEBUG_CATEGORY (gst_video_parser_debug);
-#define GST_CAT_DEFAULT gst_video_parser_debug
 
-G_DEFINE_TYPE_WITH_CODE (GstVideoParser, gst_video_parser,
-    GST_TYPE_OBJECT, GST_DEBUG_CATEGORY_INIT (gst_video_parser_debug,
-        "videoparser", 0, "Video Parser"))
+GST_DEBUG_CATEGORY (gst_vk_video_parser_debug);
+#define GST_CAT_DEFAULT gst_vk_video_parser_debug
+
+
+G_DEFINE_TYPE_WITH_CODE (GstVkVideoParser, gst_vk_video_parser,
+    GST_TYPE_OBJECT, GST_DEBUG_CATEGORY_INIT (gst_vk_video_parser_debug,
+        "vkvideoparser", 0, "Vulkan Video Parser"))
 
 static void
-process_messages (GstVideoParser * self)
+process_messages (GstVkVideoParser * self)
 {
   GstMessage *msg;
 
@@ -88,9 +90,9 @@ process_messages (GstVideoParser * self)
 }
 
 static void
-gst_video_parser_dispose (GObject * object)
+gst_vk_video_parser_dispose (GObject * object)
 {
-  GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstVkVideoParser *self = GST_VK_VIDEO_PARSER (object);
   GstMessage *msg;
 
   gst_harness_teardown (self->parser);
@@ -103,13 +105,13 @@ gst_video_parser_dispose (GObject * object)
 
   gst_object_unref (self->bus);
 
-  G_OBJECT_CLASS (gst_video_parser_parent_class)->dispose (object);
+  G_OBJECT_CLASS (gst_vk_video_parser_parent_class)->dispose (object);
 }
 
 static void
-gst_video_parser_constructed (GObject * object)
+gst_vk_video_parser_constructed (GObject * object)
 {
-  GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstVkVideoParser *self = GST_VK_VIDEO_PARSER (object);
   GstElement *bin, *decoder, *parser, *sink;
   const char *parser_name = NULL;
   const char* src_caps_desc = NULL;
@@ -118,13 +120,13 @@ gst_video_parser_constructed (GObject * object)
   if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
     parser_name = "h264parse";
     src_caps_desc = "video/x-h264,stream-format=byte-stream";
-    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_H264_DEC, "user-data", self->user_data,
+    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_VK_H264_DEC, "user-data", self->user_data,
         "oob-pic-params", self->oob_pic_params, NULL));
     g_assert (decoder);
   } else if (self->codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
     parser_name = "h265parse";
     src_caps_desc = "video/x-h265,stream-format=byte-stream";
-    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_H265_DEC, "user-data", self->user_data,
+    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_VK_H265_DEC, "user-data", self->user_data,
         "oob-pic-params", self->oob_pic_params, NULL));
     g_assert (decoder);
   }
@@ -165,10 +167,10 @@ gst_video_parser_constructed (GObject * object)
 }
 
 static void
-gst_video_parser_set_property (GObject * object, guint property_id,
+gst_vk_video_parser_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstVideoParser *self = GST_VIDEO_PARSER (object);
+  GstVkVideoParser *self = GST_VK_VIDEO_PARSER (object);
 
   switch (property_id) {
     case PROP_USER_DATA:
@@ -187,13 +189,13 @@ gst_video_parser_set_property (GObject * object, guint property_id,
 }
 
 static void
-gst_video_parser_class_init (GstVideoParserClass * klass)
+gst_vk_video_parser_class_init (GstVkVideoParserClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 
-  gobject_class->constructed = gst_video_parser_constructed;
-  gobject_class->dispose = gst_video_parser_dispose;
-  gobject_class->set_property = gst_video_parser_set_property;
+  gobject_class->constructed = gst_vk_video_parser_constructed;
+  gobject_class->dispose = gst_vk_video_parser_dispose;
+  gobject_class->set_property = gst_vk_video_parser_set_property;
 
   g_object_class_install_property (gobject_class, PROP_USER_DATA,
       g_param_spec_pointer ("user-data", "user-data", "user-data",
@@ -213,20 +215,20 @@ gst_video_parser_class_init (GstVideoParserClass * klass)
 }
 
 static void
-gst_video_parser_init (GstVideoParser * self)
+gst_vk_video_parser_init (GstVkVideoParser * self)
 {
 }
 
-GstVideoParser *
-gst_video_parser_new (gpointer user_data,
+GstVkVideoParser *
+gst_vk_video_parser_new (gpointer user_data,
     VkVideoCodecOperationFlagBitsKHR codec, gboolean oob_pic_params)
 {
-  return GST_VIDEO_PARSER (g_object_new (GST_TYPE_VIDEO_PARSER, "user-data",
+  return GST_VK_VIDEO_PARSER (g_object_new (GST_TYPE_VK_VIDEO_PARSER, "user-data",
           user_data, "codec", codec, "oob-pic-params", oob_pic_params, NULL));
 }
 
 GstFlowReturn
-gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
+gst_vk_video_parser_push_buffer (GstVkVideoParser * self, GstBuffer * buffer)
 {
   GstFlowReturn ret;
 
@@ -245,7 +247,7 @@ gst_video_parser_push_buffer (GstVideoParser * self, GstBuffer * buffer)
 }
 
 GstFlowReturn
-gst_video_parser_eos (GstVideoParser * self)
+gst_vk_video_parser_eos (GstVkVideoParser * self)
 {
   GST_DEBUG_OBJECT (self, "Pushing EOS");
 
@@ -258,7 +260,7 @@ gst_video_parser_eos (GstVideoParser * self)
 }
 
 gboolean
-gst_video_parser_is_ready (GstVideoParser * self)
+gst_vk_video_parser_is_ready (GstVkVideoParser * self)
 {
   return self->ready;
 }

@@ -26,7 +26,6 @@
 #include <cinttypes>
 
 #include "dump.h"
-#include "videoparser.h"
 
 #include <vk_video/vulkan_video_codecs_common.h>
 #include <vulkan/vulkan_beta.h>

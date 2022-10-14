@@ -22,8 +22,8 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_H264_DEC gst_h264_dec_get_type()
+#define GST_TYPE_VK_H264_DEC gst_vk_h264_dec_get_type()
 
-G_DECLARE_FINAL_TYPE (GstH264Dec, gst_h264_dec, GST, H264_DEC, GstH264Decoder)
+G_DECLARE_FINAL_TYPE (GstVkH264Dec, gst_vk_h264_dec, GST, VK_H264_DEC, GstH264Decoder)
 
 G_END_DECLS
