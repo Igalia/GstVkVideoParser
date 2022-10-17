@@ -5,13 +5,16 @@ executable(
   dependencies: [libvideoparser_dep, glib_dep],
 )
 
-lib_include = include_directories('../lib', '../lib/vkvideo_parser')
-
-if build_system == 'linux'
 cpp = meson.get_compiler('cpp')
+
+if build_system == 'windows'
+  external_libs_dir = join_paths(meson.source_root(), 'external_libs', 'wddm2_amd64_release')
+else
+  external_libs_dir = join_paths(meson.source_root(), 'external_libs', 'linux_amd64_release')
+endif
+
 executable(
   'nvtestapp', [ 'test.cpp', 'dump.cpp' ],
-  include_directories: lib_include,
-  dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: meson.source_root()), glib_dep ]
+  include_directories: include_directories('../lib', '../lib/vkvideo_parser'),
+  dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: external_libs_dir), glib_dep ]
 )
-endif
