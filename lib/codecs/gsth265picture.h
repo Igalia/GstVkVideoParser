@@ -95,10 +95,10 @@ struct _GstH265Picture
   GDestroyNotify notify;
 };
 
-GST_CODECS_API
+
 GType gst_h265_picture_get_type (void);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_picture_new (void);
 
 static inline GstH265Picture *
@@ -130,12 +130,12 @@ gst_clear_h265_picture (GstH265Picture ** picture)
   }
 }
 
-GST_CODECS_API
+
 void gst_h265_picture_set_user_data (GstH265Picture * picture,
                                      gpointer user_data,
                                      GDestroyNotify notify);
 
-GST_CODECS_API
+
 gpointer gst_h265_picture_get_user_data (GstH265Picture * picture);
 
 /*******************
@@ -143,68 +143,68 @@ gpointer gst_h265_picture_get_user_data (GstH265Picture * picture);
  *******************/
 typedef struct _GstH265Dpb GstH265Dpb;
 
-GST_CODECS_API
+
 GstH265Dpb * gst_h265_dpb_new (void);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_set_max_num_pics (GstH265Dpb * dpb,
                                      gint max_num_pics);
 
-GST_CODECS_API
+
 gint gst_h265_dpb_get_max_num_pics  (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_free             (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_clear            (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_add              (GstH265Dpb * dpb,
                                      GstH265Picture * picture);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_delete_unused    (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 gint  gst_h265_dpb_num_ref_pictures (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h265_dpb_mark_all_non_ref (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_get_ref_by_poc       (GstH265Dpb * dpb,
                                                     gint poc);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_get_ref_by_poc_lsb   (GstH265Dpb * dpb,
                                                     gint poc_lsb);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_get_short_ref_by_poc (GstH265Dpb * dpb,
                                                     gint poc);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_get_long_ref_by_poc  (GstH265Dpb * dpb,
                                                     gint poc);
 
-GST_CODECS_API
+
 GArray * gst_h265_dpb_get_pictures_all         (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_get_picture      (GstH265Dpb * dpb,
                                                 guint32 system_frame_number);
 
-GST_CODECS_API
+
 gint  gst_h265_dpb_get_size   (GstH265Dpb * dpb);
 
-GST_CODECS_API
+
 gboolean gst_h265_dpb_needs_bump (GstH265Dpb * dpb,
                                   guint max_num_reorder_pics,
                                   guint max_latency_increase,
                                   guint max_dec_pic_buffering);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_dpb_bump (GstH265Dpb * dpb,
                                     gboolean drain);
 

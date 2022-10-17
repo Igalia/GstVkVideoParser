@@ -197,14 +197,14 @@ struct _GstH265DecoderClass
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstH265Decoder, gst_object_unref)
 
-GST_CODECS_API
+
 GType gst_h265_decoder_get_type (void);
 
-GST_CODECS_API
+
 void gst_h265_decoder_set_process_ref_pic_lists (GstH265Decoder * decoder,
                                                  gboolean process);
 
-GST_CODECS_API
+
 GstH265Picture * gst_h265_decoder_get_picture   (GstH265Decoder * decoder,
                                                  guint32 system_frame_number);
 
