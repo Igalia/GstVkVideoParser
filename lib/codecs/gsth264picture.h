@@ -180,10 +180,10 @@ typedef enum
   GST_H264_DPB_BUMP_VERY_LOW_LATENCY
 } GstH264DpbBumpMode;
 
-GST_CODECS_API
+
 GType gst_h264_picture_get_type (void);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_picture_new (void);
 
 static inline GstH264Picture *
@@ -215,12 +215,12 @@ gst_clear_h264_picture (GstH264Picture ** picture)
   }
 }
 
-GST_CODECS_API
+
 void gst_h264_picture_set_user_data (GstH264Picture * picture,
                                      gpointer user_data,
                                      GDestroyNotify notify);
 
-GST_CODECS_API
+
 gpointer gst_h264_picture_get_user_data (GstH264Picture * picture);
 
 /*******************
@@ -228,95 +228,95 @@ gpointer gst_h264_picture_get_user_data (GstH264Picture * picture);
  *******************/
 typedef struct _GstH264Dpb GstH264Dpb;
 
-GST_CODECS_API
+
 GstH264Dpb * gst_h264_dpb_new (void);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_set_max_num_frames (GstH264Dpb * dpb,
                                        gint max_num_frames);
 
-GST_CODECS_API
+
 gint gst_h264_dpb_get_max_num_frames  (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void gst_h264_dpb_set_interlaced      (GstH264Dpb * dpb,
                                        gboolean interlaced);
 
-GST_CODECS_API
+
 void gst_h264_dpb_set_max_num_reorder_frames (GstH264Dpb * dpb,
                                               guint32 max_num_reorder_frames);
 
-GST_CODECS_API
+
 gboolean gst_h264_dpb_get_interlaced  (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_free             (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_clear            (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_add              (GstH264Dpb * dpb,
                                      GstH264Picture * picture);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_delete_unused    (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 gint  gst_h264_dpb_num_ref_frames (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_mark_all_non_ref (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_dpb_get_short_ref_by_pic_num (GstH264Dpb * dpb,
                                                         gint pic_num);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_dpb_get_long_ref_by_long_term_pic_num (GstH264Dpb * dpb,
                                                                  gint long_term_pic_num);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_dpb_get_lowest_frame_num_short_ref (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_get_pictures_short_term_ref (GstH264Dpb * dpb,
                                                 gboolean include_non_existing,
                                                 gboolean include_second_field,
                                                 GArray * out);
 
-GST_CODECS_API
+
 void  gst_h264_dpb_get_pictures_long_term_ref  (GstH264Dpb * dpb,
                                                 gboolean include_second_field,
                                                 GArray * out);
 
-GST_CODECS_API
+
 GArray * gst_h264_dpb_get_pictures_all         (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_dpb_get_picture      (GstH264Dpb * dpb,
                                                 guint32 system_frame_number);
 
-GST_CODECS_API
+
 gint  gst_h264_dpb_get_size   (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 gboolean gst_h264_dpb_has_empty_frame_buffer   (GstH264Dpb * dpb);
 
-GST_CODECS_API
+
 gboolean gst_h264_dpb_needs_bump (GstH264Dpb * dpb,
                                   GstH264Picture * to_insert,
                                   GstH264DpbBumpMode latency_mode);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_dpb_bump (GstH264Dpb * dpb,
                                     gboolean drain);
 
-GST_CODECS_API
+
 void gst_h264_dpb_set_last_output (GstH264Dpb * dpb,
                                    GstH264Picture * picture);
 
-GST_CODECS_API
+
 gboolean         gst_h264_dpb_perform_memory_management_control_operation (GstH264Dpb * dpb,
                                                                            GstH264RefPicMarking *ref_pic_marking,
                                                                            GstH264Picture * picture);

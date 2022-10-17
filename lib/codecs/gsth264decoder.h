@@ -76,7 +76,7 @@ typedef enum
 
 #define GST_TYPE_H264_DECODER_COMPLIANCE (gst_h264_decoder_compliance_get_type())
 
-GST_CODECS_API
+
 GType gst_h264_decoder_compliance_get_type (void);
 
 typedef struct _GstH264Decoder GstH264Decoder;
@@ -248,14 +248,14 @@ struct _GstH264DecoderClass
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstH264Decoder, gst_object_unref)
 
-GST_CODECS_API
+
 GType gst_h264_decoder_get_type (void);
 
-GST_CODECS_API
+
 void gst_h264_decoder_set_process_ref_pic_lists (GstH264Decoder * decoder,
                                                  gboolean process);
 
-GST_CODECS_API
+
 GstH264Picture * gst_h264_decoder_get_picture   (GstH264Decoder * decoder,
                                                  guint32 system_frame_number);
 
