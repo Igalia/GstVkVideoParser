@@ -28,19 +28,12 @@ jobs:
           TERM: dumb
 
       - name: Build
-        run: ninja -vC builddir
+        run: meson compile --verbose -C builddir
         env:
           TERM: dumb
 
-      - name: Test H264
-        run: |
-          builddir/test/testapp -c h264 samples/Sample_10.avc;
-          builddir/test/nvtestapp -c h264 samples/Sample_10.avc
-
-      - name: Test H265
-        run: |
-          builddir/test/nvtestapp -c h265 samples/Sample_10.hevc;
-          builddir/test/testapp -c h265 samples/Sample_10.hevc
+      - name: Test
+        run: meson test --verbose -C builddir
 
   ci-windows:
     runs-on: windows-latest
@@ -56,7 +49,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install meson
+      - name: Meson
         run: python -m pip install meson ninja
 
       - name: Configure
@@ -67,3 +60,6 @@ jobs:
       - name: Build
         run: meson compile --verbose -C builddir
 
+      # FIXME: test aren't executed
+      #- name: Test
+      #  run: meson test --verbose -C builddir
