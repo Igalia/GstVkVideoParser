@@ -34,12 +34,12 @@ jobs:
 
       - name: Test H264
         run: |
-          builddir/test/testapp -c h264 samples/Sample_10.avc
+          builddir/test/testapp -c h264 samples/Sample_10.avc;
           builddir/test/nvtestapp -c h264 samples/Sample_10.avc
 
       - name: Test H265
         run: |
-          builddir/test/nvtestapp -c h265 samples/Sample_10.hevc
+          builddir/test/nvtestapp -c h265 samples/Sample_10.hevc;
           builddir/test/testapp -c h265 samples/Sample_10.hevc
 
   ci-windows:
