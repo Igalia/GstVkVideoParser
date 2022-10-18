@@ -85,9 +85,10 @@ jobs:
       - name: Build
         run: meson compile --verbose -C builddir
 
-      # FIXME: test aren't executed
-      #- name: Test
-      #  run: meson test --verbose -C builddir
+      - name: Test
+        run: meson test --verbose -C builddir
+        env:
+          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
 
       - name: Install
         shell: bash
