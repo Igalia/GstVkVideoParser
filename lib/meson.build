@@ -38,6 +38,7 @@ videoparser = shared_library(
   c_args: '-DGST_USE_UNSTABLE_API',
   install: true,
   vs_module_defs: 'gstvkvideoparser.def',
+  override_options: _override_options,
   dependencies: libvideoparsers_dependencies,
 )
 
