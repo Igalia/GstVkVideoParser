@@ -208,7 +208,7 @@ static bool parse(FILE* stream)
         return ret;
 
     ret = (parser->Initialize(&params) == VK_SUCCESS);
-    assert(ret);
+
     if (!ret)
         return ret;
 
@@ -284,18 +284,16 @@ int main(int argc, char** argv)
         exit (EXIT_FAILURE);
     }
 
-    if (filenames == NULL || *filenames == NULL) {
+    if (!(filenames != NULL && *filenames != NULL)) {
         g_printerr ("Please provide one or more filenames.");
-        exit (EXIT_FAILURE);;
+        exit (EXIT_FAILURE);
     }
 
     if (codec_str && strcmp (codec_str, "h265") == 0)
       codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
 
-    int num = g_strv_length (filenames);
 
-    for (int i = 0; i < num; ++i)
-        ret |= process_file (filenames[i]);
+    ret |= process_file (filenames[0]);
 
     return ret;
 }

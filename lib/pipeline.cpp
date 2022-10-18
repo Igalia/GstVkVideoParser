@@ -30,6 +30,7 @@ struct _GstVideoParser
   gboolean oob_pic_params;
   GstHarness *parser;
   GstBus *bus;
+  gboolean ready;
 };
 
 enum
@@ -138,9 +139,10 @@ gst_video_parser_constructed (GObject * object)
   bin = gst_bin_new (NULL);
   gst_bin_add_many (GST_BIN (bin), parser, decoder, sink, NULL);
 
-  if (!gst_element_link_many (parser, decoder, sink, NULL))
+  if (!gst_element_link_many (parser, decoder, sink, NULL)) {
     GST_WARNING_OBJECT (self, "Failed to link element");
-
+    return;
+  }
   if ((pad = gst_bin_find_unlinked_pad (GST_BIN (bin), GST_PAD_SINK)) != NULL) {
     gst_element_add_pad (GST_ELEMENT (bin), gst_ghost_pad_new ("sink", pad));
     gst_object_unref (pad);
@@ -159,6 +161,7 @@ gst_video_parser_constructed (GObject * object)
       src_caps_desc);
 
   gst_harness_play (self->parser);
+  self->ready = true;
 }
 
 static void
@@ -252,4 +255,10 @@ gst_video_parser_eos (GstVideoParser * self)
   process_messages (self);
 
   return GST_FLOW_EOS;
+}
+
+gboolean
+gst_video_parser_is_ready (GstVideoParser * self)
+{
+  return self->ready;
 }

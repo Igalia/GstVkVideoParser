@@ -36,4 +36,6 @@ GstFlowReturn            gst_video_parser_push_buffer (GstVideoParser *self,
 
 GstFlowReturn            gst_video_parser_eos         (GstVideoParser *self);
 
+gboolean                 gst_video_parser_is_ready     (GstVideoParser *self);
+
 G_END_DECLS
