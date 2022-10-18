@@ -1,7 +1,9 @@
-
 glib_dep = dependency('glib-2.0')
+
+sources = files('test.cpp', 'dump.cpp')
+
 executable(
-  'testapp', [ 'test.cpp', 'dump.cpp' ],
+  'testapp', sources,
   dependencies: [libvideoparser_dep, glib_dep],
   override_options: _override_options,
 )
@@ -15,7 +17,7 @@ else
 endif
 
 executable(
-  'nvtestapp', [ 'test.cpp', 'dump.cpp' ],
+  'nvtestapp', sources,
   override_options: _override_options,
   include_directories: include_directories('../lib', '../lib/vkvideo_parser'),
   dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: external_libs_dir), glib_dep ]
