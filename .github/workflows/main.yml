@@ -2,6 +2,7 @@ name: "GstVkVideoParser native build"
 run-name: Native build by ${{ github.actor }}
 on:
   workflow_dispatch:
+  workflow_call:
   pull_request:
     branches:
       - main
