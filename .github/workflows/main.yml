@@ -2,16 +2,21 @@ name: "GstVkVideoParser native build"
 run-name: Native build by ${{ github.actor }}
 on:
   workflow_dispatch:
+  workflow_call:
   pull_request:
     branches:
       - main
   push:
     branches:
       - main
+env:
+  REPO_NAME: gstvkvideoparser
 
 jobs:
-  ci-linux:
+  ci-linux-x86_64:
     runs-on: ubuntu-22.04
+    env:
+      PLATFORM: linux-x86_64
     steps:
       - uses: actions/checkout@v3
 
@@ -39,14 +44,23 @@ jobs:
         run:
           DESTDIR=install ninja -C builddir install
 
-      - name: Create binaries tarball
+      - name: Create zip
+        shell: bash
         run:
           pushd builddir/install/;
-          zip ../../release-linux-x64.zip * -r;
+          zip ../../$REPO_NAME-release-$PLATFORM.zip * -r;
           popd
 
-  ci-windows:
+      - name: Upload linux release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+
+  ci-win64:
     runs-on: windows-latest
+    env:
+      PLATFORM: windows-x64
     steps:
       - uses: actions/checkout@v3
 
@@ -81,8 +95,15 @@ jobs:
         env:
           DESTDIR: install
 
-      - name: Create binaries tarball
+      - name: Create zip
+        shell: bash
         run:
           pushd builddir/install/;
-          zip ../../release-win64.zip * -r;
+          zip ../../$REPO_NAME-release-$PLATFORM.zip * -r;
           popd
+
+      - name: Upload windows release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
