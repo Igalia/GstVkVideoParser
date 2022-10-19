@@ -8,7 +8,7 @@ on:
 name: Create Release
 
 jobs:
-  build:
+  build-release:
     name: Build release
     uses: ./.github/workflows/main.yml
   create-release:
