@@ -42,13 +42,13 @@ jobs:
 
       - name: Install
         run:
-          DESTDIR=install ninja -C builddir install
+          DESTDIR=$REPO_NAME-release ninja -C builddir install
 
       - name: Create zip
         shell: bash
         run:
-          pushd builddir/install/;
-          zip ../../$REPO_NAME-release-$PLATFORM.zip * -r;
+          pushd builddir/;
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release;
           popd
 
       - name: Upload linux release
@@ -92,26 +92,25 @@ jobs:
       - name: Install
         shell: bash
         run:
+          export DESTDIR=$REPO_NAME-release;
           ninja -C builddir install;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\glib-2.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gobject-2.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gmodule-2.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstreamer-1.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcheck-1.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/install/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstvideo-1.0-0.dll builddir/install/bin
-        env:
-          DESTDIR: install
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\glib-2.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gobject-2.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gmodule-2.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstreamer-1.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcheck-1.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/$DESTDIR/bin;
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstvideo-1.0-0.dll builddir/$DESTDIR/bin
 
       - name: Create zip
         shell: bash
         run:
-          pushd builddir/install/;
-          zip ../../$REPO_NAME-release-$PLATFORM.zip * -r;
+          pushd builddir/;
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release;
           popd
 
       - name: Upload windows release
