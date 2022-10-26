@@ -148,6 +148,7 @@ gst_vk_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
     // .SequenceHeaderData[1024];
     .pbSideData = nullptr,
     .cbSideData = 0,
+    .codecProfile = sps->profile_idc,
   };
 
   if (sps->frame_cropping_flag) {

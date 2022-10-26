@@ -127,6 +127,25 @@ profile_is_svc (GstCaps * caps)
   return g_str_has_prefix (profile, "scalable");
 }
 
+static StdVideoH265ProfileIdc
+get_profile_idc (GstH265ProfileIDC profile_idc)
+{
+  switch (profile_idc) {
+  case GST_H265_PROFILE_IDC_MAIN:
+    return STD_VIDEO_H265_PROFILE_IDC_MAIN;
+  case GST_H265_PROFILE_IDC_MAIN_10:
+    return STD_VIDEO_H265_PROFILE_IDC_MAIN_10;
+  case GST_H265_PROFILE_IDC_MAIN_STILL_PICTURE:
+    return STD_VIDEO_H265_PROFILE_IDC_MAIN_STILL_PICTURE;
+  case GST_H265_PROFILE_IDC_FORMAT_RANGE_EXTENSION:
+    return STD_VIDEO_H265_PROFILE_IDC_FORMAT_RANGE_EXTENSIONS;
+  default:
+    break;
+  }
+
+  return STD_VIDEO_H265_PROFILE_IDC_INVALID;
+}
+
 static VkPic *
 gst_vk_h265_dec_get_decoder_frame_from_picture (GstH265Decoder * self,
     GstH265Picture * picture)
@@ -168,6 +187,7 @@ gst_vk_h265_dec_new_sequence (GstH265Decoder * decoder, const GstH265SPS * sps,
     // .SequenceHeaderData[1024];
     .pbSideData = nullptr,
     .cbSideData = 0,
+    .codecProfile = static_cast<uint32_t>(get_profile_idc(static_cast<GstH265ProfileIDC>(sps->profile_tier_level.profile_idc))),
   };
 
   if (sps->vui_parameters_present_flag && sps->vui_params.field_seq_flag) {
@@ -314,25 +334,6 @@ gst_vk_h265_dec_end_picture (GstH265Decoder * decoder, GstH265Picture * picture)
   g_free (slice_offsets);
 
   return ret;
-}
-
-static StdVideoH265ProfileIdc
-get_profile_idc (GstH265ProfileIDC profile_idc)
-{
-  switch (profile_idc) {
-  case GST_H265_PROFILE_IDC_MAIN:
-    return STD_VIDEO_H265_PROFILE_IDC_MAIN;
-  case GST_H265_PROFILE_IDC_MAIN_10:
-    return STD_VIDEO_H265_PROFILE_IDC_MAIN_10;
-  case GST_H265_PROFILE_IDC_MAIN_STILL_PICTURE:
-    return STD_VIDEO_H265_PROFILE_IDC_MAIN_STILL_PICTURE;
-  case GST_H265_PROFILE_IDC_FORMAT_RANGE_EXTENSION:
-    return STD_VIDEO_H265_PROFILE_IDC_FORMAT_RANGE_EXTENSIONS;
-  default:
-    break;
-  }
-
-  return STD_VIDEO_H265_PROFILE_IDC_INVALID;
 }
 
 static void
