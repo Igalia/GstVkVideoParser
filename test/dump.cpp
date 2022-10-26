@@ -903,6 +903,7 @@ dump_parser_sequence_info (const VkParserSequenceInfo * info)
   // end_array();
   print_string ("pbSideData", "%8s", info->pbSideData); // uint8_t* pbSideData; // Auxiliary encryption information
   print_integer ("cbSideData", info->cbSideData);       // Auxiliary encryption information length
+  print_integer ("codecProfile", info->codecProfile); // Codec profile IDC
   end_object ();
 }
 
