@@ -42,7 +42,9 @@ jobs:
 
       - name: Install
         run:
-          DESTDIR=$REPO_NAME-release ninja -C builddir install
+          ninja -C builddir install
+        env:
+          DESTDIR: ${{ env.REPO_NAME }}-release
 
       - name: Create zip
         shell: bash
@@ -85,33 +87,36 @@ jobs:
       - name: Build
         run: meson compile --verbose -C builddir
 
-      - name: Test
-        run: meson test --verbose -C builddir
-        env:
-          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
+      # - name: Test
+      #   run: |
+      #     dir C:\gstreamer\1.0\msvc_x86_64\lib
+      #     meson test --verbose -C builddir
+      #     type D:\a\GstVkVideoParser\GstVkVideoParser\builddir\meson-logs\testlog.txt
+      #   env:
+      #     PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
 
       - name: Install
-        shell: bash
-        run:
-          export DESTDIR=$REPO_NAME-release;
-          ninja -C builddir install;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\glib-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gobject-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gmodule-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstreamer-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcheck-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstvideo-1.0-0.dll builddir/$DESTDIR/bin
+        run: |
+          ninja -C builddir install
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\ffi-7.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\orc-0.4-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\intl-8.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\glib-2.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gobject-2.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gmodule-2.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gstreamer-1.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer1.0\msvc_x86_64\bin\gstcheck-1.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gstcodecparsers-1.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gstbase-1.0-0.dll builddir\%DESTDIR%\bin
+          cp C:\gstreamer\1.0\msvc_x86_64\bin\gstvideo-1.0-0.dll builddir\%DESTDIR%/bin
+        env:
+          DESTDIR: ${{ env.REPO_NAME }}-release
 
       - name: Create zip
         shell: bash
-        run:
-          pushd builddir/;
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release;
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
           popd
 
       - name: Upload windows release
