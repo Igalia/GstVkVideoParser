@@ -269,19 +269,13 @@ int main(int argc, char** argv)
 
     ctx = g_option_context_new ("TEST");
     g_option_context_add_main_entries (ctx, entries, NULL);
-
-
-    if (argc == 1) {
-        g_print ("%s", g_option_context_get_help (ctx, FALSE, NULL));
-        exit (EXIT_FAILURE);;
-    }
-
     if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
         g_printerr ("Error initializing: %s\n", err->message);
-        g_option_context_free (ctx);
         g_clear_error (&err);
+        g_option_context_free (ctx);
         exit (EXIT_FAILURE);
     }
+    g_option_context_free (ctx);
 
     if (!(filenames != NULL && *filenames != NULL)) {
         g_printerr ("Please provide one or more filenames.");
@@ -291,8 +285,11 @@ int main(int argc, char** argv)
     if (codec_str && strcmp (codec_str, "h265") == 0)
       codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
 
+    int num = g_strv_length (filenames);
+    for (int i = 0; i < num; ++i)
+        ret |= process_file (filenames[i], quiet);
 
-    ret |= process_file (filenames[0]);
+    g_strfreev (filenames);
 
     return ret;
 }
