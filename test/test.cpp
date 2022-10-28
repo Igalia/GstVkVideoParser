@@ -95,8 +95,9 @@ private:
 
 class VideoParserClient : public VkParserVideoDecodeClient {
 public:
-    VideoParserClient()
-        : m_dpb(32)
+    VideoParserClient(bool quiet)
+        : m_dpb(32),
+        m_quiet(quiet)
     {
     }
 
@@ -105,8 +106,8 @@ public:
         int32_t max = 16, conf = 1;
 
         fprintf(stdout, "%s\n", __FUNCTION__);
-
-        dump_parser_sequence_info(info);
+        if (!m_quiet)
+            dump_parser_sequence_info(info);
 
         if (info->eCodec == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_EXT)
             max++;
@@ -137,7 +138,8 @@ public:
     bool DecodePicture(VkParserPictureData* pic) final
     {
         fprintf(stdout, "%s - %" PRIu32 "\n", __FUNCTION__, pic->nBitstreamDataLen);
-        dump_parser_picture_data(codec, pic);
+        if (!m_quiet)
+            dump_parser_picture_data(codec, pic);
         return true;
     }
 
@@ -146,7 +148,8 @@ public:
         // fprintf(stdout, "%s: %" PRIu64 "\n", __FUNCTION__, count);
         fprintf(stdout, "%s\n", __FUNCTION__);
         shared = PictureParameterSet::create();
-        dump_picture_parameters(params);
+        if (!m_quiet)
+            dump_picture_parameters(params);
         return true;
     }
 
@@ -169,12 +172,14 @@ public:
 
 private:
     std::vector<Picture> m_dpb;
+    bool m_quiet;
+
 };
 
-static bool parse(FILE* stream)
+static bool parse(FILE* stream, bool quiet)
 {
     VulkanVideoDecodeParser* parser = nullptr;
-    VideoParserClient client = VideoParserClient();
+    VideoParserClient client = VideoParserClient(quiet);
     VkParserInitDecodeParameters params = {
         .interfaceVersion = NV_VULKAN_VIDEO_PARSER_API_VERSION,
         .pClient = &client,
@@ -234,7 +239,7 @@ static bool parse(FILE* stream)
     return ret;
 }
 
-int process_file (gchar* filename) {
+int process_file (gchar* filename, bool quiet) {
     FILE* file;
     file = fopen(filename, "r");
     if (!file) {
@@ -242,7 +247,7 @@ int process_file (gchar* filename) {
         return EXIT_FAILURE;
     }
 
-    if (!parse(file)) {
+    if (!parse(file, quiet)) {
         fclose(file);
         return EXIT_FAILURE;
     }
@@ -257,9 +262,11 @@ int main(int argc, char** argv)
     GError *err = NULL;
     gchar **filenames = NULL;
     gchar *codec_str = NULL;
+    gboolean quiet = FALSE;
     gint ret = EXIT_SUCCESS;
 
     static GOptionEntry entries[] = {
+        { "quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet, "Quiet parser", NULL },
         { "codec", 'c', 0, G_OPTION_ARG_STRING, &codec_str, "Codec to use ie h265", NULL },
         {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &filenames, NULL},
         { NULL }
