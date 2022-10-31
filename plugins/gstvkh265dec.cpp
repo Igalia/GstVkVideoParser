@@ -15,21 +15,21 @@
  * permissions and limitations under the License.
  */
 
-#include "gstvkh265dec.h"
+#include "gstvkelements.h"
 #include "glib_compat.h"
 
 #include <atomic>
 
-#include "vkvideodecodeparser.h"
 #include "videoutils.h"
+#include "VulkanVideoParserIf.h"
 #include "vulkan_video_codec_h265std.h"
 
 #define GST_VK_H265_DEC(obj)           ((GstVkH265Dec *) obj)
 #define GST_VK_H265_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), G_TYPE_FROM_INSTANCE(obj), GstVkH265DecClass))
 #define GST_VK_H265_DEC_CLASS(klass)   ((GstVkH265DecClass *) klass)
 
-GST_DEBUG_CATEGORY_EXTERN (gst_vk_video_parser_debug);
-#define GST_CAT_DEFAULT gst_vk_video_parser_debug
+
+#define GST_CAT_DEFAULT gst_vk_parser_debug
 
 static GstStaticPadTemplate sink_factory =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -90,6 +90,7 @@ enum
 };
 
 G_DEFINE_TYPE(GstVkH265Dec, gst_vk_h265_dec, GST_TYPE_H265_DECODER)
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vkh265parse, "vkh265parse", GST_RANK_PRIMARY, GST_TYPE_VK_H265_DEC, vk_element_init(plugin));
 
 static gpointer parent_class = NULL;
 
@@ -1188,6 +1189,11 @@ gst_vk_h265_dec_class_init (GstVkH265DecClass * klass)
   GstH265DecoderClass *h265decoder_class = GST_H265_DECODER_CLASS (klass);
 
   parent_class = g_type_class_peek_parent (klass);
+
+  gst_element_class_set_static_metadata (element_class, "Vulkan H265 parser",
+      "Filter/Analyzer/Video",
+      "Generates Vulkan Video structures for H265 bitstream",
+      "Víctor Jáquez <vjaquez@igalia.com>");
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&sink_factory));

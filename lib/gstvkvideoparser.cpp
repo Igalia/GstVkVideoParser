@@ -19,8 +19,6 @@
 
 #include <gst/check/gstharness.h>
 
-#include "gstvkh264dec.h"
-#include "gstvkh265dec.h"
 
 struct _GstVkVideoParser
 {
@@ -117,14 +115,14 @@ bool GstVkVideoParser::Build ()
   if (m_codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
     parser_name = "h264parse";
     src_caps_desc = "video/x-h264,stream-format=byte-stream";
-    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_VK_H264_DEC, "user-data", m_user_data,
-        "oob-pic-params", m_oob_pic_params, NULL));
+    decoder = gst_element_factory_make_full("vkh264parse", "user-data", m_user_data,
+        "oob-pic-params",  m_oob_pic_params, NULL);
     g_assert (decoder);
   } else if (m_codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
     parser_name = "h265parse";
     src_caps_desc = "video/x-h265,stream-format=byte-stream";
-    decoder = reinterpret_cast<GstElement*>(g_object_new (GST_TYPE_VK_H265_DEC, "user-data", m_user_data,
-        "oob-pic-params", m_oob_pic_params, NULL));
+    decoder = gst_element_factory_make_full("vkh265parse", "user-data", m_user_data,
+        "oob-pic-params", m_oob_pic_params, NULL);
     g_assert (decoder);
   }
   else {
