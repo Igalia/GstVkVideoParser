@@ -18,24 +18,30 @@
 #pragma once
 
 #include <gst/gst.h>
+#include <gst/check/gstharness.h>
 #define VK_ENABLE_BETA_EXTENSIONS 1
 #include <vulkan/vulkan.h>
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_VK_VIDEO_PARSER gst_vk_video_parser_get_type()
+class GstVkVideoParser {
+public:
+    GstVkVideoParser(gpointer user_data,
+                                       VkVideoCodecOperationFlagBitsKHR codec,
+                                       gboolean oob_pic_params);
+    ~GstVkVideoParser();
 
-G_DECLARE_FINAL_TYPE (GstVkVideoParser, gst_vk_video_parser, GST, VK_VIDEO_PARSER, GstObject)
+    bool Build();
+    GstFlowReturn PushBuffer(GstBuffer *buffer);
+    void ProcessMessages ();
+    GstFlowReturn Eos();
 
-GstVkVideoParser *         gst_vk_video_parser_new         (gpointer user_data,
-                                                       VkVideoCodecOperationFlagBitsKHR codec,
-                                                       gboolean oob_pic_params);
-
-GstFlowReturn            gst_vk_video_parser_push_buffer (GstVkVideoParser *self,
-						       GstBuffer *buffer);
-
-GstFlowReturn            gst_vk_video_parser_eos         (GstVkVideoParser *self);
-
-gboolean                 gst_vk_video_parser_is_ready     (GstVkVideoParser *self);
+private:
+    void* m_user_data;
+    VkVideoCodecOperationFlagBitsKHR m_codec;
+    bool m_oob_pic_params;
+    GstHarness* m_parser;
+    GstBus* m_bus;
+};
 
 G_END_DECLS
