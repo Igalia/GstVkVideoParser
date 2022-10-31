@@ -1,10 +1,19 @@
 glib_dep = dependency('glib-2.0')
+gmodule_dep = dependency('gmodule-2.0')
 
 sources = files('test.cpp', 'dump.cpp')
+sources_dlopen = files('testdlopen.cpp', 'dump.cpp')
 
 gsttest = executable(
   'testapp', sources,
   dependencies: [libvideoparser_dep, glib_dep],
+  override_options: _override_options,
+)
+
+gstdlopentest = executable(
+  'testdlopenapp', sources_dlopen,
+  dependencies: [glib_dep, gmodule_dep],
+  include_directories: include_directories('../lib', '../lib/vkvideo_parser'),
   override_options: _override_options,
 )
 
