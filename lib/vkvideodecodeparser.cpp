@@ -115,9 +115,6 @@ int32_t GstVkVideoDecoderParser::Release()
 {
     if (g_atomic_int_dec_and_test(&m_refCount)) {
         Deinitialize();
-        // Deinitialize can be called explicitly and Release
-        if (gst_is_initialized())
-            gst_deinit();
         delete this;
         return 0;
     }
