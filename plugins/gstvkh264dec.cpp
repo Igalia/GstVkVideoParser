@@ -16,18 +16,19 @@
  */
 
 #include "gstvkh264dec.h"
+#include "gstvkelements.h"
 #include "glib_compat.h"
 
 
-#include "vkvideodecodeparser.h"
 #include "videoutils.h"
+
+#include "VulkanVideoParserIf.h"
 
 #define GST_VK_H264_DEC(obj)           ((GstVkH264Dec *) obj)
 #define GST_VK_H264_DEC_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), G_TYPE_FROM_INSTANCE(obj), GstVkH264DecClass))
 #define GST_VK_H264_DEC_CLASS(klass)   ((GstVkH264DecClass *) klass)
 
-GST_DEBUG_CATEGORY_EXTERN (gst_vk_video_parser_debug);
-#define GST_CAT_DEFAULT gst_vk_video_parser_debug
+#define GST_CAT_DEFAULT gst_vk_parser_debug
 
 static GstStaticPadTemplate sink_factory =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -85,6 +86,7 @@ enum
 };
 
 G_DEFINE_TYPE(GstVkH264Dec, gst_vk_h264_dec, GST_TYPE_H264_DECODER)
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vkh264parse, "vkh264parse", GST_RANK_PRIMARY, GST_TYPE_VK_H264_DEC, vk_element_init(plugin));
 
 static gpointer parent_class = NULL;
 
@@ -924,6 +926,11 @@ gst_vk_h264_dec_class_init (GstVkH264DecClass * klass)
   GstH264DecoderClass *h264decoder_class = GST_H264_DECODER_CLASS (klass);
 
   parent_class = g_type_class_peek_parent (klass);
+
+  gst_element_class_set_static_metadata (element_class, "Vulkan H264 parser",
+      "Filter/Analyzer/Video",
+      "Generates Vulkan Video structures for H264 bitstream",
+      "Víctor Jáquez <vjaquez@igalia.com>");
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&sink_factory));
