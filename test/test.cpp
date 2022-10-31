@@ -82,6 +82,7 @@ static bool parse(FILE* stream, bool quiet)
         assert(pkt.nDataLength == parsed);
     }
 
+    ret = (parser->Deinitialize() == 0);
     ret = (parser->Release() == 0);
     assert(ret);
     return ret;

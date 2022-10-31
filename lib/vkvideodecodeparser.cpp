@@ -65,8 +65,8 @@ VkResult GstVkVideoDecoderParser::Initialize(VkParserInitDecodeParameters* param
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
 
-    m_parser = gst_vk_video_parser_new(params->pClient, m_codec, params->bOutOfBandPictureParameters);
-    if (!gst_vk_video_parser_is_ready(m_parser))
+    m_parser = new GstVkVideoParser(params->pClient, m_codec, params->bOutOfBandPictureParameters);
+    if (!m_parser->Build())
         return VK_ERROR_INITIALIZATION_FAILED;
 
     return VK_SUCCESS;
@@ -74,7 +74,10 @@ VkResult GstVkVideoDecoderParser::Initialize(VkParserInitDecodeParameters* param
 
 bool GstVkVideoDecoderParser::Deinitialize()
 {
-    gst_clear_object(&m_parser);
+    if (m_parser) {
+        delete m_parser;
+        m_parser  = nullptr;
+    }
     return true;
 }
 
@@ -88,13 +91,13 @@ bool GstVkVideoDecoderParser::ParseByteStream(const VkParserBitstreamPacket* bsp
         if (!buffer)
             return false;
 
-        auto ret = gst_vk_video_parser_push_buffer(m_parser, buffer);
+        auto ret = m_parser->PushBuffer(buffer);
         if (ret != GST_FLOW_OK)
             return false;
     }
 
     if (bspacket->bEOS) {
-        auto ret = gst_vk_video_parser_eos(m_parser);
+        auto ret = m_parser->Eos();
         if (ret != GST_FLOW_EOS)
             return false;
     }
