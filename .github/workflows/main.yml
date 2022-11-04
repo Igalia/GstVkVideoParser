@@ -38,7 +38,9 @@ jobs:
           TERM: dumb
 
       - name: Test
-        run: meson test --verbose -C builddir
+        run:
+          export GST_PLUGIN_PATH=`pwd`/builddir/plugins;
+          meson test --verbose -C builddir
 
       - name: Install
         run:
