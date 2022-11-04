@@ -17,9 +17,6 @@
 
 #include "gstvkvideoparser.h"
 
-#include <gst/check/gstharness.h>
-
-
 struct _GstVkVideoParser
 {
   GstObject parent;

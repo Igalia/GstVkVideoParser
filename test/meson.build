@@ -6,7 +6,7 @@ sources_dlopen = files('testdlopen.cpp', 'dump.cpp')
 
 gsttest = executable(
   'testapp', sources,
-  dependencies: [libvideoparser_dep, glib_dep],
+  dependencies: [libvkvideoparser_dep, glib_dep],
   override_options: _override_options,
 )
 
