@@ -690,7 +690,11 @@ gst_harness_new_empty (void)
   priv->latency_max = GST_CLOCK_TIME_NONE;
   priv->is_live = TRUE;
   priv->drop_buffers = FALSE;
+  #if 1
+  priv->testclock = NULL;
+  #else
   priv->testclock = GST_TEST_CLOCK_CAST (gst_test_clock_new ());
+  #endif
 
   priv->buffer_queue = g_async_queue_new_full (
       (GDestroyNotify) gst_buffer_unref);

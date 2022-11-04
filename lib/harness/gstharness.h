@@ -22,8 +22,8 @@
 #define __GST_HARNESS_H__
 
 #include <gst/gst.h>
-#include <gst/check/gsttestclock.h>
 #include <gst/check/check-prelude.h>
+#include "gsttestclock.h"
 
 G_BEGIN_DECLS
 

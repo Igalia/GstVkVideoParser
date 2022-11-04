@@ -14,6 +14,7 @@ sources = files(
 
 harness_sources = files (
   'harness/gstharness.c',
+  'harness/gsttestclock.c',
 )
 
 videoparser_headers = files(
