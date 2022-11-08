@@ -1341,6 +1341,9 @@ gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
       nalu->type, nalu->offset, nalu->size);
 
   switch (nalu->type) {
+    case GST_H264_NAL_SEI:
+      GST_DEBUG_OBJECT(self, "Received a SEI nal");
+      break;
     case GST_H264_NAL_SPS:
       ret = gst_h264_decoder_parse_sps (self, nalu);
       break;
