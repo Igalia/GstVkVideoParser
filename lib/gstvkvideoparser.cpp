@@ -115,6 +115,7 @@ bool GstVkVideoParser::Build ()
     decoder = gst_element_factory_make_full("vkh264parse", "user-data", m_user_data,
         "oob-pic-params",  m_oob_pic_params, NULL);
     g_assert (decoder);
+    g_object_set(decoder, "compliance", 3, NULL);
   } else if (m_codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
     parser_name = "h265parse";
     src_caps_desc = "video/x-h265,stream-format=byte-stream";
@@ -149,7 +150,7 @@ bool GstVkVideoParser::Build ()
 
   gst_object_unref (bin);
 
-  gst_harness_set_live (m_parser, FALSE);
+  gst_harness_set_live (m_parser, TRUE);
 
   gst_harness_set_src_caps_str (m_parser,
       src_caps_desc);
