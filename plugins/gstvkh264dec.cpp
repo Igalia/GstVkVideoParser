@@ -106,8 +106,8 @@ static void
 vk_pic_free (gpointer data)
 {
   VkPic *vkpic = static_cast<VkPic *>(data);
-
-  vkpic->pic->Release ();
+  if (vkpic->pic)
+    vkpic->pic->Release ();
   g_byte_array_unref (vkpic->bitstream);
   g_array_unref (vkpic->slice_offsets);
   g_free (vkpic->slice_group_map);
