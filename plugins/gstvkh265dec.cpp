@@ -114,6 +114,8 @@ vk_pic_free (gpointer data)
   if (vkpic->pic)
     vkpic->pic->Release ();
   g_byte_array_unref (vkpic->bitstream);
+  g_free ((uint32_t *)vkpic->data.pSliceDataOffsets);
+  g_free (vkpic->data.pBitstreamData);
   g_array_unref (vkpic->slice_offsets);
   g_free (vkpic->slice_group_map);
   g_free (vkpic);
@@ -313,12 +315,11 @@ gst_vk_h265_dec_end_picture (GstH265Decoder * decoder, GstH265Picture * picture)
   GstVkH265Dec *self = GST_VK_H265_DEC (decoder);
   VkPic *vkpic = reinterpret_cast<VkPic *>(gst_h265_picture_get_user_data(picture));
   gsize len;
-  uint32_t *slice_offsets;
   GstFlowReturn ret = GST_FLOW_OK;
 
   vkpic->data.pBitstreamData = g_byte_array_steal (vkpic->bitstream, &len);
   vkpic->data.nBitstreamDataLen = static_cast<int32_t>(len);
-  vkpic->data.pSliceDataOffsets = slice_offsets =
+  vkpic->data.pSliceDataOffsets =
       static_cast <uint32_t *>(g_array_steal (vkpic->slice_offsets, NULL));
 
   // FIXME: This flag is set to TRUE unconditionally because VulkanVideoParser.cpp expects it be true
@@ -330,9 +331,6 @@ gst_vk_h265_dec_end_picture (GstH265Decoder * decoder, GstH265Picture * picture)
     if (!self->client->DecodePicture (&vkpic->data))
       ret = GST_FLOW_ERROR;
   }
-
-  g_free (vkpic->data.pBitstreamData);
-  g_free (slice_offsets);
 
   return ret;
 }
