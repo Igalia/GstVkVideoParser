@@ -149,6 +149,7 @@ int main(int argc, char** argv)
 
     if (codec_str && strcmp (codec_str, "h265") == 0)
       codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
+    g_free (codec_str);
 
     int num = g_strv_length (filenames);
     for (int i = 0; i < num; ++i)
