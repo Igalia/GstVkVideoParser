@@ -17,16 +17,6 @@
 
 #include "gstvkvideoparser.h"
 
-struct _GstVkVideoParser
-{
-  GstObject parent;
-  gpointer user_data;
-  VkVideoCodecOperationFlagBitsKHR codec;
-  gboolean oob_pic_params;
-  GstHarness *parser;
-  GstBus *bus;
-};
-
 enum
 {
   PROP_USER_DATA = 1,
