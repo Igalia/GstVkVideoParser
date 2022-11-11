@@ -67,6 +67,9 @@ public:
     Picture()
         : m_refCount(0)
     {
+        decodeHeight = 0;
+        decodeWidth = 0;
+        decodeSuperResWidth = 0;
     }
 
     void AddRef() final
