@@ -25,7 +25,7 @@ jobs:
           sudo apt update
           # Hack to install libunwind-dev (gstreamer dependency)
           sudo apt remove --assume-yes libunwind-14-dev
-          sudo apt install --assume-yes --no-install-recommends meson libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad
+          sudo apt install --assume-yes --no-install-recommends meson libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad valgrind
 
       - name: Configure
         run: meson setup builddir
@@ -39,8 +39,9 @@ jobs:
 
       - name: Test
         run:
-          export GST_PLUGIN_PATH=`pwd`/builddir/plugins;
-          meson test --verbose -C builddir
+          export GST_PLUGIN_PATH=${GITHUB_WORKSPACE}/builddir/plugins;
+          echo $GITHUB_WORKSPACE;
+          meson test --wrap=$GITHUB_WORKSPACE/valgrind/valgrind.sh --verbose -C builddir
 
       - name: Install
         run:
