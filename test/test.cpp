@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 
     int num = g_strv_length (filenames);
     for (int i = 0; i < num; ++i)
-        ret |= process_file (filenames[0], quiet);
+        ret |= process_file (filenames[i], quiet);
 
      g_strfreev (filenames);
 
