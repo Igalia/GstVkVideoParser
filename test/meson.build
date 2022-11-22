@@ -30,6 +30,13 @@ nvtest = executable(
   dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: external_libs_dir), glib_dep, vulkan_include_dep, libvkvideoparser_dep.partial_dependency(includes: true) ]
 )
 
+demuxerestest = executable(
+  'testdemuxeres',
+  files('testdemuxeres.cpp'),
+  override_options: _override_options,
+  dependencies: [libdemuxeres_dep, glib_dep]
+)
+
 h264sample = files(join_paths(source_root, 'samples', 'Sample_10.avc'))
 h265sample = files(join_paths(source_root, 'samples', 'Sample_10.hevc'))
 

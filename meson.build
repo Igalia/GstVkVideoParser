@@ -36,6 +36,8 @@ plugins_install_dir = join_paths(get_option('libdir'), 'gstreamer-1.0')
 gst_dep = dependency('gstreamer-1.0', version: gst_req)
 gst_video_dep = dependency('gstreamer-video-1.0', version: gst_req)
 gst_codecparsers_dep = dependency('gstreamer-codecparsers-1.0', version: gst_req )
+gstapp_dep = dependency('gstreamer-app-1.0', version : gst_req,
+    fallback : ['gst-plugins-base', 'app_dep'])
 glib_dep = dependency('glib-2.0')
 gmodule_dep = dependency('gmodule-2.0')
 
