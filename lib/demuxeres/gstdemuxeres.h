@@ -17,7 +17,9 @@
 
 #pragma once
 
-#include <glib.h>
+#include <gst/gst.h>
+#include <gst/video/video-info.h>
+#include <gst/audio/audio-info.h>
 
 #if defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_DEMUXERES
@@ -59,7 +61,7 @@ typedef enum _GstDemuxerEStreamType
 } GstDemuxerEStreamType;
 
 typedef enum GstDemuxerVideoCodec {
-  DEMUXER_ES_VIDEO_CODEC_UNKNOWN,
+  DEMUXER_ES_VIDEO_CODEC_UNKNOWN = 0,
   DEMUXER_ES_VIDEO_CODEC_H264,
   DEMUXER_ES_VIDEO_CODEC_H265,
 } GstDemuxerVideoCodec;
@@ -92,23 +94,15 @@ typedef struct {
 } GstDemuxerESPacket;
 
 typedef struct _GstDemuxerVideoInfo {
-  gint width;
-  gint height;
-  gint fps_n;
-  gint fps_d;
-  gint par_n;
-  gint par_d;
   gint bitrate;
   gchar* profile;
   gchar* level;
   GstDemuxerVideoCodec vcodec;
+  GstVideoInfo info;
 } GstDemuxerVideoInfo;
 
 typedef struct _GstDemuxerAudioInfo {
-  gint channels;
-  gint rate;
-  gint width;
-  gint depth;
+  GstAudioInfo info;
   gint bitrate;
   GstDemuxerAudioCodec acodec;
 } GstDemuxerAudioInfo;
@@ -118,14 +112,14 @@ typedef union _GstDemuxerInfoData
 {
   GstDemuxerVideoInfo video;
   GstDemuxerAudioInfo audio;
-} GstDemuxerInfoData;
+} GstDemuxerData;
 
 typedef struct
 {
   GstDemuxerES *demuxer;
   GstDemuxerEStreamType type;
   guint id;
-  GstDemuxerInfoData info;
+  GstDemuxerData data;
 } GstDemuxerEStream;
 
 GST_DEMUXER_ES_API

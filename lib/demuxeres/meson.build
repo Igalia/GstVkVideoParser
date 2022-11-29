@@ -8,6 +8,8 @@ demuxeres_headers = files(
 
 install_headers(demuxeres_headers)
 
+demuxer_es_deps = [gst_dep, gst_video_dep, gst_audio_dep, gstapp_dep]
+
 demuxeres = shared_library(
   'gstdemuxeres',
   files('gstdemuxeres.c'),
@@ -15,18 +17,18 @@ demuxeres = shared_library(
   c_args: ['-DGST_USE_UNSTABLE_API','-DBUILDING_DEMUXERES'],
   install: true,
 #  vs_module_defs: 'gstdemuxeres.def',
-  dependencies: [gst_dep, gst_codecparsers_dep, gst_video_dep, gstapp_dep],
+  dependencies: demuxer_es_deps,
 )
 
 libdemuxeres_dep = declare_dependency(
-  dependencies: [gst_dep],
+  dependencies: demuxer_es_deps,
   sources: 'gstdemuxeres.h',
   include_directories: include_directories('.'),
   link_with: demuxeres,
 )
 
 pkgconfig.generate(demuxeres,
-  libraries : [gst_dep],
+  libraries : demuxer_es_deps,
   name : 'gstdemuxeres',
   description : 'helper to demux elementary stream',
 )

@@ -23,16 +23,16 @@ void
 print_video_info (GstDemuxerEStream * stream)
 {
   g_print ("video info: \n");
-  g_print ("\tcodec: %d\n", stream->info.video.vcodec);
-  g_print ("\tprofile: %s\n", stream->info.video.profile);
-  g_print ("\tlevel: %s\n", stream->info.video.level);
-  g_print ("\twidth: %d\n", stream->info.video.width);
-  g_print ("\theight: %d\n", stream->info.video.height);
-  g_print ("\tbitrate: %d\n", stream->info.video.bitrate);
-  g_print ("\tfps: %d/%d\n", stream->info.video.fps_d,
-      stream->info.video.fps_d);
-  g_print ("\tpar: %d/%d\n", stream->info.video.par_n,
-      stream->info.video.par_d);
+  g_print ("\tcodec: %d\n", stream->data.video.vcodec);
+  g_print ("\tprofile: %s\n", stream->data.video.profile);
+  g_print ("\tlevel: %s\n", stream->data.video.level);
+  g_print ("\twidth: %d\n", stream->data.video.info.width);
+  g_print ("\theight: %d\n", stream->data.video.info.height);
+  g_print ("\tbitrate: %d\n", stream->data.video.bitrate);
+  g_print ("\tfps: %d/%d\n", stream->data.video.info.fps_d,
+      stream->data.video.info.fps_d);
+  g_print ("\tpar: %d/%d\n", stream->data.video.info.par_n,
+      stream->data.video.info.par_d);
   g_print ("\n");
 }
 
