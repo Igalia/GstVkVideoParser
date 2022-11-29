@@ -25,6 +25,14 @@ static guint packet_counter = 0;
 GST_DEBUG_CATEGORY_STATIC (demuxer_es_debug);
 #define GST_CAT_DEFAULT demuxer_es_debug
 
+
+typedef enum
+{
+  GST_AUTOPLUG_SELECT_TRY,
+  GST_AUTOPLUG_SELECT_EXPOSE,
+  GST_AUTOPLUG_SELECT_SKIP
+} GstAutoplugSelectResult;
+
 typedef enum _GstDemuxerESState
 {
   DEMUXER_ES_STATE_IDLE = 0,
@@ -35,9 +43,7 @@ typedef enum _GstDemuxerESState
 
 struct _GstDemuxerESPrivate
 {
-  GstElement *src;
   GstElement *pipeline;
-  GstElement *parsebin;
   gchar *current_uri;
 
   GAsyncQueue *packets;
@@ -108,7 +114,6 @@ gst_parse_stream_get_type_from_pad (GstPad * pad)
   GstDemuxerEStreamType type = DEMUXER_ES_STREAM_TYPE_UNKNOWN;
 
   caps = gst_pad_query_caps (pad, NULL);
-
 
   if (caps) {
     s = gst_caps_get_structure (caps, 0);
@@ -184,8 +189,8 @@ gst_parse_stream_teardown (GstDemuxerEStream * stream)
 {
   switch (stream->type) {
     case DEMUXER_ES_STREAM_TYPE_VIDEO:
-      g_free (stream->info.video.profile);
-      g_free (stream->info.video.level);
+      g_free (stream->data.video.profile);
+      g_free (stream->data.video.level);
     default:
       break;
   }
@@ -196,85 +201,72 @@ GstDemuxerEStream *
 gst_parse_stream_create (GstDemuxerES * demuxer, GstPad * pad)
 {
   GstDemuxerEStream *stream;
-  GstElement *appsink;
+  GstElement *appsink = NULL;
+  GstAppSinkCallbacks callbacks = { 0, };
   GstPad *sinkpad;
   GstDemuxerESPrivate *priv = demuxer->priv;
-  GstCaps *caps;
-  GstAppSinkCallbacks callbacks = { 0, };
+  GstPadLinkReturn link;
+  GstCaps *caps = gst_pad_query_caps (pad, NULL);
+
+  if (!caps) {
+    GST_ERROR
+        ("Unable to get the caps from pad, unable to create a new stream");
+    return NULL;
+  }
+  GST_INFO ("the stream caps is %" GST_PTR_FORMAT, caps);
 
   stream = g_new0 (GstDemuxerEStream, 1);
   stream->demuxer = demuxer;
   stream->type = gst_parse_stream_get_type_from_pad (pad);
-  caps = gst_pad_query_caps (pad, NULL);
-  if (caps) {
-    gchar* caps_desc = gst_caps_to_string(caps);
-    GST_ERROR ("the stream caps is %s",caps_desc);
-    g_free (caps_desc);
-    GstStructure *s =
-        gst_caps_is_empty (caps) ? NULL : gst_caps_get_structure (caps, 0);
-    if (s) {
-      switch (stream->type) {
-        case DEMUXER_ES_STREAM_TYPE_VIDEO:
-        {
-          const GValue *fps, *par;
-          gst_structure_get_int (s, "width", &stream->info.video.width);
-          gst_structure_get_int (s, "height", &stream->info.video.height);
-          gst_structure_get_int (s, "bitrate", &stream->info.video.bitrate);
-          stream->info.video.vcodec =
-              gst_parse_stream_get_vcodec_from_caps (caps);
-          par = gst_structure_get_value (s, "pixel-aspect-ratio");
-          if (par && GST_VALUE_HOLDS_FRACTION (par)) {
-            stream->info.video.par_n = gst_value_get_fraction_numerator (par);
-            stream->info.video.par_d = gst_value_get_fraction_denominator (par);
-          } else {
-            stream->info.video.par_n = stream->info.video.par_d = 1;
-          }
-          fps = gst_structure_get_value (s, "framerate");
-          if (fps && GST_VALUE_HOLDS_FRACTION (fps)) {
-            stream->info.video.fps_n = gst_value_get_fraction_numerator (fps);
-            stream->info.video.fps_d = gst_value_get_fraction_denominator (fps);
-          } else {
-            stream->info.video.fps_n = 30;
-            stream->info.video.fps_d = 1;
-          }
 
-          stream->info.video.profile =
-              g_strdup (gst_structure_get_string (s, "profile"));
-          stream->info.video.level =
-              g_strdup (gst_structure_get_string (s, "level"));
-          break;
-        }
-        case DEMUXER_ES_STREAM_TYPE_AUDIO:
-        {
-          gst_structure_get_int (s, "channels", &stream->info.audio.channels);
-          gst_structure_get_int (s, "bitrate", &stream->info.audio.bitrate);
-          gst_structure_get_int (s, "rate", &stream->info.audio.rate);
-          gst_structure_get_int (s, "width", &stream->info.audio.width);
-          gst_structure_get_int (s, "depth", &stream->info.audio.depth);
-          stream->info.audio.acodec =
-              gst_parse_stream_get_acodec_from_caps (caps);
-          break;
-        }
-        default:
-          break;
-      }
+  GstStructure *s = gst_caps_get_structure (caps, 0);
+  switch (stream->type) {
+    case DEMUXER_ES_STREAM_TYPE_VIDEO:
+    {
+      gst_video_info_from_caps (&stream->data.video.info, caps);
+      gst_structure_get_int (s, "bitrate", &stream->data.video.bitrate);
+      stream->data.video.profile =
+          g_strdup (gst_structure_get_string (s, "profile"));
+      stream->data.video.level =
+          g_strdup (gst_structure_get_string (s, "level"));
+      stream->data.video.vcodec = gst_parse_stream_get_vcodec_from_caps (caps);
+      break;
     }
+    case DEMUXER_ES_STREAM_TYPE_AUDIO:
+    {
+      gst_audio_info_from_caps (&stream->data.audio.info, caps);
+      gst_structure_get_int (s, "bitrate", &stream->data.audio.bitrate);
+      stream->data.audio.acodec = gst_parse_stream_get_acodec_from_caps (caps);
+      break;
+    }
+    default:
+      break;
   }
-
-  gst_caps_unref (caps);
-
   stream->id = g_list_length (priv->streams);
+
   appsink = gst_element_factory_make ("appsink", NULL);
   g_object_set (appsink, "sync", FALSE, "emit-signals", TRUE, NULL);
+
   gst_bin_add_many (GST_BIN (priv->pipeline), appsink, NULL);
   sinkpad = gst_element_get_static_pad (appsink, "sink");
-  gst_pad_link (pad, sinkpad);
-  gst_element_sync_state_with_parent (appsink);
+  if ((link = gst_pad_link (pad, sinkpad)) != GST_PAD_LINK_OK) {
+    GST_ERROR ("Unable to link the appsink with the parser link status %d",
+        link);
+    gst_parse_stream_teardown (stream);
+    stream = NULL;
+  }
 
-  callbacks.new_sample =appsink_new_sample_cb;
-  gst_app_sink_set_callbacks ((GstAppSink *) appsink, &callbacks, stream,
-      NULL);
+  GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (priv->pipeline),
+      GST_DEBUG_GRAPH_SHOW_ALL, "gst-demuxerer.stream_create");
 
+  if (appsink)
+    gst_element_sync_state_with_parent (appsink);
+
+  callbacks.new_sample = appsink_new_sample_cb;
+  gst_app_sink_set_callbacks ((GstAppSink *) appsink, &callbacks, stream, NULL);
+
+  gst_caps_unref (caps);
+  gst_object_unref (sinkpad);
   return stream;
 }
 
@@ -311,43 +303,106 @@ set_demuxer_ready (GstDemuxerES * demuxer)
 }
 
 static void
-parsebin_pad_added_cb (GstElement * parsebin, GstPad * pad,
+uridecodebin_pad_added_cb (GstElement * uridecodebin, GstPad * pad,
     GstDemuxerES * demuxer)
 {
   GstDemuxerEStream *stream = NULL;
-  GstDemuxerESPrivate *priv = demuxer->priv;
 
   if (!GST_PAD_IS_SRC (pad))
     return;
-
 
   GST_DEBUG ("pad %s:%s", GST_DEBUG_PAD_NAME (pad));
 
   stream = gst_parse_stream_create (demuxer, pad);
-  priv->streams = g_list_append (priv->streams, stream);
+  if (!stream)
+    return;
 
+  demuxer->priv->streams = g_list_append (demuxer->priv->streams, stream);
   GST_DEBUG ("Done linking");
+}
+
+static void
+uridecodebin_pad_no_more_pads (GstElement * uridecodebin,
+    GstDemuxerES * demuxer)
+{
+  GstDemuxerESPrivate *priv = demuxer->priv;
+  GST_INFO ("No more pads received from %s", GST_ELEMENT_NAME (uridecodebin));
   if (priv->state == DEMUXER_ES_STATE_IDLE)
     set_demuxer_ready (demuxer);
 }
 
-static void
-parsebin_pad_no_more_pads (GstElement * parsebin, GstDemuxerES * demuxer)
+static GstAutoplugSelectResult
+uridecodebin_autoplug_select_cb (GstElement * src, GstPad * pad,
+    GstCaps * caps, GstElementFactory * factory, GstDemuxerES * demuxer)
 {
-  GST_ERROR ("No more pads received from parsebin");
+  GstAutoplugSelectResult ret = GST_AUTOPLUG_SELECT_TRY;
+  if (gst_element_factory_list_is_type (factory,
+          GST_ELEMENT_FACTORY_TYPE_DECODER)) {
+    GST_DEBUG ("Expose pad if factory is decoder.");
+    ret = GST_AUTOPLUG_SELECT_EXPOSE;
+  }
+
+  return ret;
 }
 
-static void
-urisourcebin_pad_added_cb (GstElement * parsebin, GstPad * pad,
-    GstDemuxerES * demuxer)
+static gboolean
+autoplug_query_caps (GstElement * uridecodebin, GstPad * pad,
+    GstElement * element, GstQuery * query, GstDemuxerES * demuxer)
 {
-  if (!GST_PAD_IS_SRC (pad))
-    return;
-  GST_DEBUG ("pad %s:%s", GST_DEBUG_PAD_NAME (pad));
-  if (!gst_element_link_many (demuxer->priv->src, demuxer->priv->parsebin, NULL)) {
-    GST_ERROR ("failed linking");
-    gst_demuxer_es_teardown (demuxer);
-    demuxer = NULL;
+  GstCaps *result = NULL;
+  GstElementFactory *factory = gst_element_get_factory (element);
+
+  if (!factory)
+    goto done;
+
+  if (gst_element_factory_list_is_type (factory,
+          GST_ELEMENT_FACTORY_TYPE_PARSER)) {
+    GstCaps *caps = gst_pad_query_caps (pad, NULL);
+    if (!caps) {
+      GST_ERROR ("Unable to retrive caps from the parser");
+      goto done;
+    }
+    GstStructure *s = gst_caps_get_structure (caps, 0);
+    if (!s)
+      goto done;
+    GstDemuxerVideoCodec codec_id =
+        gst_parse_stream_get_vcodec_from_caps (caps);
+    switch (codec_id) {
+      case DEMUXER_ES_VIDEO_CODEC_H264:
+        result =
+            gst_caps_from_string
+            ("video/x-h264,stream-format=byte-stream,alignment=au");
+        break;
+      case DEMUXER_ES_VIDEO_CODEC_H265:
+        result =
+            gst_caps_from_string
+            ("video/x-h265,stream-format=byte-stream,alignment=au");
+        break;
+      default:
+        GST_DEBUG ("Unknown codec id %d", codec_id);
+    }
+
+    gst_caps_unref (caps);
+    if (result) {
+      gst_query_set_caps_result (query, result);
+      GST_INFO ("the caps is %" GST_PTR_FORMAT, result);
+      gst_caps_unref (result);
+    }
+  }
+
+done:
+  return (result != NULL);
+}
+
+static gboolean
+uridecodebin_autoplug_query_cb (GstElement * uridecodebin, GstPad * pad,
+    GstElement * element, GstQuery * query, GstDemuxerES * demuxer)
+{
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CAPS:
+      return autoplug_query_caps (uridecodebin, pad, element, query, demuxer);
+    default:
+      return FALSE;
   }
 }
 
@@ -389,8 +444,8 @@ check_for_bus_message (GstDemuxerES * demuxer)
       check_message = FALSE;
   }
   gst_object_unref (bus);
-  return terminate;
 
+  return terminate;
 }
 
 GstDemuxerES *
@@ -398,7 +453,7 @@ gst_demuxer_es_new (const gchar * uri)
 {
   GstDemuxerES *demuxer;
   GstDemuxerESPrivate *priv;
-
+  GstElement *uridecodebin;
   GstStateChangeReturn sret;
 
   if (!gst_init_check (NULL, NULL, NULL))
@@ -421,22 +476,19 @@ gst_demuxer_es_new (const gchar * uri)
 
   priv->pipeline = gst_pipeline_new ("demuxeres");
 
+  uridecodebin = gst_element_factory_make ("uridecodebin", NULL);
+  g_object_set (G_OBJECT (uridecodebin), "uri", priv->current_uri, NULL);
 
-  priv->src = gst_element_factory_make ("urisourcebin", NULL);
-  g_object_set (G_OBJECT (priv->src), "priv->current_uri", uri, NULL);
+  g_signal_connect (uridecodebin, "pad-added",
+      G_CALLBACK (uridecodebin_pad_added_cb), demuxer);
+  g_signal_connect (uridecodebin, "no-more-pads",
+      G_CALLBACK (uridecodebin_pad_no_more_pads), demuxer);
+  g_signal_connect (uridecodebin, "autoplug-select",
+      G_CALLBACK (uridecodebin_autoplug_select_cb), demuxer);
+  g_signal_connect (uridecodebin, "autoplug-query",
+      G_CALLBACK (uridecodebin_autoplug_query_cb), demuxer);
 
-  g_signal_connect (priv->src, "pad-added",
-      G_CALLBACK (urisourcebin_pad_added_cb), demuxer);
-
-
-  priv->parsebin = gst_element_factory_make ("parsebin", NULL);
-
-  g_signal_connect (priv->parsebin, "pad-added",
-      G_CALLBACK (parsebin_pad_added_cb), demuxer);
-  g_signal_connect (priv->parsebin, "no-more-pads",
-      G_CALLBACK (parsebin_pad_no_more_pads), demuxer);
-
-  gst_bin_add_many (GST_BIN (priv->pipeline), priv->src, priv->parsebin, NULL);
+  gst_bin_add_many (GST_BIN (priv->pipeline), uridecodebin, NULL);
 
   sret = gst_element_set_state (priv->pipeline, GST_STATE_PLAYING);
   switch (sret) {
@@ -516,7 +568,7 @@ gst_demuxer_es_find_best_stream (GstDemuxerES * demuxer,
   priv = demuxer->priv;
 
   GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (priv->pipeline),
-      GST_DEBUG_GRAPH_SHOW_ALL, "gst-demuxeres.snapshot");
+      GST_DEBUG_GRAPH_SHOW_ALL, "gst-demuxeres.best_stream");
 
   if (priv->state == DEMUXER_ES_STATE_IDLE) {
     return NULL;
