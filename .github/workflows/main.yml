@@ -43,6 +43,15 @@ jobs:
           echo $GITHUB_WORKSPACE;
           meson test --wrap=$GITHUB_WORKSPACE/valgrind/valgrind.sh --verbose -C builddir
 
+      - name: Test Reference
+        run:
+          export GST_PLUGIN_PATH=${GITHUB_WORKSPACE}/builddir/plugins;
+          echo $GITHUB_WORKSPACE;
+          ./builddir/test/testapp samples/Sample_10.avc > builddir/Sample_10.avc.ref;
+          diff -u builddir/Sample_10.avc.ref samples/Sample_10.avc.ref;
+          ./builddir/test/testapp -c h265 samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
+          diff -u builddir/Sample_10.hevc.ref samples/Sample_10.hevc.ref
+
       - name: Install
         run:
           DESTDIR=$REPO_NAME-release ninja -C builddir install

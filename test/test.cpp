@@ -18,10 +18,14 @@
 #include <glib.h>
 
 
-
-
 #include "VideoParserClient.h"
 
+#ifdef _DEBUG
+#   define DBG(FMT, ...) g_print(FMT, ##__VA_ARGS__)
+#else
+#   define DBG(FMT, ...)
+#endif
+#define ERR(FMT, ...) g_print("ERROR: " FMT, ##__VA_ARGS__)
 
 static VkVideoCodecOperationFlagBitsKHR codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
 
@@ -50,7 +54,7 @@ static bool parse(FILE* stream, bool quiet)
     } else if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
         pStdExtensionVersion = &h265StdExtensionVersion;
     } else {
-        assert(!"Unsupported Codec Type");
+        ERR ("Unsupported Codec Type");
         return false;
     }
 
@@ -75,7 +79,7 @@ static bool parse(FILE* stream, bool quiet)
         };
 
         if (!parser->ParseByteStream(&pkt, &parsed)) {
-            fprintf(stdout, "failed to parse bitstream.\n");
+            ERR ("failed to parse bitstream.\n");
             break;
         }
 
@@ -90,10 +94,10 @@ static bool parse(FILE* stream, bool quiet)
 
 int process_file (gchar* filename, bool quiet) {
     FILE* file;
-    fprintf(stdout, "Processing file %s.\n", filename);
+    DBG ("Processing file %s.\n", filename);
     file = fopen(filename, "r");
     if (!file) {
-        g_printerr( "Unable to open: %s -- %s.\n", filename, strerror(errno));
+        ERR ( "Unable to open: %s -- %s.\n", filename, strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -129,12 +133,12 @@ int main(int argc, char** argv)
 
 
     if (argc == 1) {
-        g_print ("%s", g_option_context_get_help (ctx, FALSE, NULL));
+        ERR ("%s", g_option_context_get_help (ctx, FALSE, NULL));
         exit (EXIT_FAILURE);;
     }
 
     if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
-        g_printerr ("Error initializing: %s\n", err->message);
+        ERR ("Error initializing: %s\n", err->message);
         g_option_context_free (ctx);
         g_clear_error (&err);
         exit (EXIT_FAILURE);
@@ -143,7 +147,7 @@ int main(int argc, char** argv)
     g_option_context_free (ctx);
 
     if (!(filenames != NULL && *filenames != NULL)) {
-        g_printerr ("Please provide one or more filenames.");
+        ERR ("Please provide one or more filenames.");
         exit (EXIT_FAILURE);
     }
 
