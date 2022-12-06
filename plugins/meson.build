@@ -16,8 +16,6 @@ libvideoparsers_dependencies = [
     vulkan_include_dep
 ]
 
-install_headers(videoparser_headers)
-
 gstvkparser = library('gstvkparser',
 	  vkparser_sources,
 	  c_args : plugin_c_args + ['-DGST_USE_UNSTABLE_API'],
