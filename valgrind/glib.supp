@@ -1,0 +1,124 @@
+
+# fixed in GStreamer glib version
+{
+   glib ubuntu 22.04
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:g_malloc
+   obj:/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.1
+   obj:/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.1
+   fun:call_init.part.0
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+}
+{
+   glib ubuntu 22.04 2
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:g_malloc
+   obj:/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+   obj:/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+   fun:call_init.part.0
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+   obj:*
+   obj:*
+   obj:*
+}
+
+{
+  Fedora
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:g_malloc
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   fun:call_init
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib64/ld-linux-x86-64.so.2
+   obj:*
+   obj:*
+   obj:*
+}
+
+{
+   Fedora
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:g_malloc
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   fun:call_init
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib64/ld-linux-x86-64.so.2
+}
+
+{
+   coucou
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:g_malloc
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   fun:call_init
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib64/ld-linux-x86-64.so.2
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:UnknownInlinedFun
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_2.34
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   obj:/usr/lib64/libglib-2.0.so.0.7200.3
+   fun:g_thread_pool_push
+   fun:default_push
+   fun:start_task
+   fun:gst_task_set_state_unlocked
+   fun:gst_task_set_state
+   fun:gst_pad_start_task
+   fun:gst_pad_set_active
+   fun:activate_pads
+   fun:gst_iterator_fold
+   fun:iterator_activate_fold_with_resync.constprop.0
+   fun:gst_element_pads_activate
+   fun:gst_element_change_state_func
+   fun:gst_type_find_element_change_state
+   fun:gst_element_change_state
+   fun:gst_element_set_state_func
+   fun:gst_bin_element_set_state
+   fun:gst_bin_change_state_func
+   fun:gst_decode_bin_change_state
+   fun:gst_element_change_state
+   fun:gst_element_change_state
+   fun:gst_element_set_state_func
+   fun:gst_element_sync_state_with_parent
+   fun:g_slist_foreach
+   fun:gst_uri_decode_bin_change_state
+   fun:gst_element_change_state
+   fun:gst_element_set_state_func
+   fun:gst_bin_element_set_state
+   fun:gst_bin_change_state_func
+   fun:gst_pipeline_change_state
+   fun:gst_element_change_state
+   fun:gst_element_change_state
+   fun:gst_element_set_state_func
+   fun:gst_demuxer_es_new
+   fun:_Z12process_filePc
+   fun:main
+}
