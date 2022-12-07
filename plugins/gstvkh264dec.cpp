@@ -90,6 +90,103 @@ GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vkh264parse, "vkh264parse", GST_RANK_PRIM
 
 static gpointer parent_class = NULL;
 
+static StdVideoH264ProfileIdc
+get_h264_profile (guint8 profile_idc)
+{
+  switch (static_cast<GstH264Profile>(profile_idc)) {
+    case GST_H264_PROFILE_BASELINE:
+      return STD_VIDEO_H264_PROFILE_IDC_BASELINE;
+    case GST_H264_PROFILE_MAIN:
+      return STD_VIDEO_H264_PROFILE_IDC_MAIN;
+    case GST_H264_PROFILE_HIGH:
+      return STD_VIDEO_H264_PROFILE_IDC_HIGH;
+    case GST_H264_PROFILE_HIGH_444:
+      return STD_VIDEO_H264_PROFILE_IDC_HIGH_444_PREDICTIVE;
+    default:
+      return STD_VIDEO_H264_PROFILE_IDC_INVALID;
+  }
+}
+
+static StdVideoH264LevelIdc
+get_h264_level_idc (guint8 level_idc)
+{
+  switch (level_idc) {
+    case 10:
+      return STD_VIDEO_H264_LEVEL_IDC_1_0;
+    case 11:
+      return STD_VIDEO_H264_LEVEL_IDC_1_1;
+    case 12:
+      return STD_VIDEO_H264_LEVEL_IDC_1_2;
+    case 13:
+      return STD_VIDEO_H264_LEVEL_IDC_1_3;
+    case 20:
+      return STD_VIDEO_H264_LEVEL_IDC_2_0;
+    case 21:
+      return STD_VIDEO_H264_LEVEL_IDC_2_1;
+    case 22:
+      return STD_VIDEO_H264_LEVEL_IDC_2_2;
+    case 30:
+      return STD_VIDEO_H264_LEVEL_IDC_3_0;
+    case 31:
+      return STD_VIDEO_H264_LEVEL_IDC_3_1;
+    case 32:
+      return STD_VIDEO_H264_LEVEL_IDC_3_2;
+    case 40:
+      return STD_VIDEO_H264_LEVEL_IDC_4_0;
+    case 41:
+      return STD_VIDEO_H264_LEVEL_IDC_4_1;
+    case 42:
+      return STD_VIDEO_H264_LEVEL_IDC_4_2;
+    case 50:
+      return STD_VIDEO_H264_LEVEL_IDC_5_0;
+    case 51:
+      return STD_VIDEO_H264_LEVEL_IDC_5_1;
+    case 52:
+      return STD_VIDEO_H264_LEVEL_IDC_5_2;
+    case 60:
+      return STD_VIDEO_H264_LEVEL_IDC_6_0;
+    case 61:
+      return STD_VIDEO_H264_LEVEL_IDC_6_1;
+    case 62:
+      return STD_VIDEO_H264_LEVEL_IDC_6_2;
+    default:
+      return STD_VIDEO_H264_LEVEL_IDC_INVALID;
+  }
+}
+
+static StdVideoH264ChromaFormatIdc
+get_h264_chroma_format (guint8 chroma_format_idc)
+{
+  if (chroma_format_idc >= 0 && chroma_format_idc <= 3)
+    return static_cast <StdVideoH264ChromaFormatIdc>(chroma_format_idc);
+  return STD_VIDEO_H264_CHROMA_FORMAT_IDC_INVALID;
+}
+
+static StdVideoH264PocType
+get_h264_poc_type (guint8 pic_order_cnt_type)
+{
+  if (pic_order_cnt_type >= 0 && pic_order_cnt_type <= 2)
+    return static_cast <StdVideoH264PocType>(pic_order_cnt_type);
+  return STD_VIDEO_H264_POC_TYPE_INVALID;
+}
+
+static StdVideoH264AspectRatioIdc
+get_h264_aspect_ratio_idc (guint8 aspect_ratio_idc)
+{
+  if ((aspect_ratio_idc >= 0 && aspect_ratio_idc <= 16)
+      || aspect_ratio_idc == 255)
+    return static_cast <StdVideoH264AspectRatioIdc>(aspect_ratio_idc);
+  return STD_VIDEO_H264_ASPECT_RATIO_IDC_INVALID;
+}
+
+static StdVideoH264WeightedBipredIdc
+get_h264_weighted_bipred_idc (guint8 weighted_bipred_idc)
+{
+  if (weighted_bipred_idc >= 0 && weighted_bipred_idc <= 2)
+    return static_cast <StdVideoH264WeightedBipredIdc>(weighted_bipred_idc);
+  return STD_VIDEO_H264_WEIGHTED_BIPRED_IDC_INVALID;
+}
+
 static VkPic *vk_pic_new (VkPicIf * pic)
 {
   VkPic *vkpic = g_new0 (struct VkPic, 1);
@@ -427,8 +524,7 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
       .nal_hrd_parameters_present_flag = vui->nal_hrd_parameters_present_flag,
       .vcl_hrd_parameters_present_flag = vui->vcl_hrd_parameters_present_flag,
     },
-    .aspect_ratio_idc =
-        static_cast<StdVideoH264AspectRatioIdc>(vui->aspect_ratio_idc),
+    .aspect_ratio_idc = get_h264_aspect_ratio_idc(vui->aspect_ratio_idc),
     .sar_width = vui->sar_width,
     .sar_height = vui->sar_height,
     .video_format = vui->video_format,
@@ -466,16 +562,14 @@ fill_sps (GstH264SPS * sps, VkH264Picture * vkp)
       .seq_scaling_matrix_present_flag = sps->scaling_matrix_present_flag,
       .vui_parameters_present_flag = sps->vui_parameters_present_flag,
     },
-    .profile_idc = static_cast<StdVideoH264ProfileIdc>(sps->profile_idc),
-    .level_idc = static_cast<StdVideoH264LevelIdc>(sps->level_idc),
-    .chroma_format_idc =
-        static_cast<StdVideoH264ChromaFormatIdc>(sps->chroma_format_idc),
+    .profile_idc = get_h264_profile(sps->profile_idc),
+    .level_idc = get_h264_level_idc(sps->level_idc),
+    .chroma_format_idc = get_h264_chroma_format(sps->chroma_format_idc),
     .seq_parameter_set_id = static_cast<uint8_t>(sps->id),
     .bit_depth_luma_minus8 = sps->bit_depth_luma_minus8,
     .bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8,
     .log2_max_frame_num_minus4 = sps->log2_max_frame_num_minus4,
-    .pic_order_cnt_type =
-        static_cast<StdVideoH264PocType>(sps->pic_order_cnt_type),
+    .pic_order_cnt_type = get_h264_poc_type(sps->pic_order_cnt_type),
     .offset_for_non_ref_pic = sps->offset_for_non_ref_pic,
     .offset_for_top_to_bottom_field = sps->offset_for_top_to_bottom_field,
     .log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4,
@@ -526,8 +620,7 @@ fill_pps (GstH264PPS * pps, VkH264Picture * vkp)
     .pic_parameter_set_id = static_cast<uint8_t>(pps->id),
     .num_ref_idx_l0_default_active_minus1 = pps->num_ref_idx_l0_active_minus1,
     .num_ref_idx_l1_default_active_minus1 = pps->num_ref_idx_l1_active_minus1,
-    .weighted_bipred_idc =
-        static_cast<StdVideoH264WeightedBipredIdc>(pps->weighted_bipred_idc),
+    .weighted_bipred_idc = get_h264_weighted_bipred_idc(pps->weighted_bipred_idc),
     .pic_init_qp_minus26 = pps->pic_init_qp_minus26,
     .pic_init_qs_minus26 = pps->pic_init_qs_minus26,
     .chroma_qp_index_offset = pps->chroma_qp_index_offset,
