@@ -15,10 +15,19 @@ env:
 jobs:
   ci-linux-x86_64:
     runs-on: ubuntu-22.04
+
     env:
       PLATFORM: linux-x86_64
+      TERM: dumb
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: |
+          echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=$GITHUB_WORKSPACE/builddir/plugins" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |
@@ -29,38 +38,28 @@ jobs:
 
       - name: Configure
         run: meson setup builddir
-        env:
-          TERM: dumb
 
       - name: Build
         run: meson compile --verbose -C builddir
-        env:
-          TERM: dumb
 
       - name: Test
-        run:
-          export GST_PLUGIN_PATH=${GITHUB_WORKSPACE}/builddir/plugins;
-          echo $GITHUB_WORKSPACE;
-          meson test --wrap=$GITHUB_WORKSPACE/valgrind/valgrind.sh --verbose -C builddir
+        run: meson test --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
 
       - name: Test Reference
-        run:
-          export GST_PLUGIN_PATH=${GITHUB_WORKSPACE}/builddir/plugins;
-          echo $GITHUB_WORKSPACE;
+        run: |
           ./builddir/test/testapp samples/Sample_10.avc > builddir/Sample_10.avc.ref;
           diff -u builddir/Sample_10.avc.ref samples/Sample_10.avc.ref;
           ./builddir/test/testapp -c h265 samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
           diff -u builddir/Sample_10.hevc.ref samples/Sample_10.hevc.ref
 
       - name: Install
-        run:
-          DESTDIR=$REPO_NAME-release ninja -C builddir install
+        run: ninja -C builddir install
 
       - name: Create zip
         shell: bash
-        run:
-          pushd builddir/;
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release;
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
           popd
 
       - name: Upload linux release
@@ -71,22 +70,36 @@ jobs:
 
   ci-win64:
     runs-on: windows-latest
+
     env:
       PLATFORM: windows-x64
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install pkgconfiglite
+        uses: nick-fields/retry@v2
+        with:
+          timeout_seconds: 120
+          max_attempts: 3
+          retry_on: error
+          command: choco install --yes --allow-empty-checksums pkgconfiglite
 
       - name: Install dependencies
         run: |
-          choco install --yes --allow-empty-checksums pkgconfiglite
           choco install --yes gstreamer gstreamer-devel
           choco install --yes zip
 
-      - uses: actions/setup-python@v4
+      - name: Install python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Meson
+      - name: Install meson
         run: python -m pip install meson ninja
 
       - name: Configure
@@ -103,26 +116,25 @@ jobs:
 
       - name: Install
         shell: bash
-        run:
-          export DESTDIR=$REPO_NAME-release;
-          ninja -C builddir install;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\glib-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gobject-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gmodule-2.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstreamer-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcheck-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/$DESTDIR/bin;
-          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/$DESTDIR/bin;
+        run: |
+          ninja -C builddir install
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\glib-2.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gobject-2.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gmodule-2.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstreamer-1.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcheck-1.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/$DESTDIR/bin
+          cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/$DESTDIR/bin
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstvideo-1.0-0.dll builddir/$DESTDIR/bin
 
       - name: Create zip
         shell: bash
-        run:
-          pushd builddir/;
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release;
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
           popd
 
       - name: Upload windows release
