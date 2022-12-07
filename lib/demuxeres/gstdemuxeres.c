@@ -52,12 +52,30 @@ struct _GstDemuxerESPrivate
   GstDemuxerESState state;
   GCond ready_cond;
   GMutex ready_mutex;
+  gboolean waiting_del;
+  GCond queue_item_del;
   GMutex queue_mutex;
+  gint max_queue_size;
+  gint threshold_queue_size;
 };
 
+#define GST_QUEUE_SIGNAL_DEL(q) G_STMT_START {                          \
+  if (q->waiting_del) {                                                 \
+    g_cond_signal (&q->queue_item_del);                                        \
+  }                                                                     \
+} G_STMT_END
+
+#define GST_QUEUE_WAIT_DEL_CHECK(q) G_STMT_START {         \
+  q->waiting_del = TRUE;                                                \
+  GST_LOG("Wait for the queue to empty.. %d", g_async_queue_length(priv->packets)); \
+  g_cond_wait (&q->queue_item_del, &q->queue_mutex);                              \
+  q->waiting_del = FALSE;                                               \
+} G_STMT_END
+
+
 static gchar *
-get_gst_valid_uri (const gchar * filename)
-{
+get_gst_valid_uri (const gchar * filename) {
+
   if (gst_uri_is_valid (filename)) {
     return g_strdup (filename);
   }
@@ -69,6 +87,28 @@ struct _GstDemuxerESPacketPrivate
 {
   GstSample *sample;
 };
+
+static gboolean
+queue_is_filled (GstDemuxerESPrivate * priv, gboolean threshold)
+{
+  gint queue_size, max_queue_size;
+  queue_size = g_async_queue_length (priv->packets);
+  GST_LOG ("Queue size: %d", queue_size);
+  max_queue_size =
+      priv->max_queue_size - (threshold ? priv->threshold_queue_size : 0);
+  GST_LOG ("Queue size: %d Max queue size: %d", queue_size, max_queue_size);
+  return (queue_size >= max_queue_size);
+}
+
+static inline void
+set_demuxer_ready (GstDemuxerES * demuxer)
+{
+  GstDemuxerESPrivate *priv = demuxer->priv;
+
+  g_mutex_lock (&priv->ready_mutex);
+  g_cond_signal (&priv->ready_cond);
+  g_mutex_unlock (&priv->ready_mutex);
+}
 
 static GstFlowReturn
 appsink_new_sample_cb (GstAppSink * appsink, gpointer user_data)
@@ -97,9 +137,13 @@ appsink_new_sample_cb (GstAppSink * appsink, gpointer user_data)
     packet->pts = GST_BUFFER_PTS (buffer);
     packet->dts = GST_BUFFER_DTS (buffer);
     packet->duration = GST_BUFFER_DURATION (buffer);
-    g_mutex_lock (&priv->queue_mutex);
+
+    if (queue_is_filled (priv, FALSE)) {
+      GST_QUEUE_WAIT_DEL_CHECK (priv);
+    }
     g_async_queue_push (priv->packets, packet);
-    g_mutex_unlock (&priv->queue_mutex);
+    if (priv->state == DEMUXER_ES_STATE_IDLE)
+      set_demuxer_ready (demuxer);
   }
 
   return GST_FLOW_OK;
@@ -292,16 +336,6 @@ wait_for_demuxer_ready (GstDemuxerES * demuxer, gint64 wait_time)
   return (priv->state == DEMUXER_ES_STATE_READY);
 }
 
-static inline void
-set_demuxer_ready (GstDemuxerES * demuxer)
-{
-  GstDemuxerESPrivate *priv = demuxer->priv;
-
-  g_mutex_lock (&priv->ready_mutex);
-  g_cond_signal (&priv->ready_cond);
-  g_mutex_unlock (&priv->ready_mutex);
-}
-
 static void
 uridecodebin_pad_added_cb (GstElement * uridecodebin, GstPad * pad,
     GstDemuxerES * demuxer)
@@ -325,10 +359,7 @@ static void
 uridecodebin_pad_no_more_pads (GstElement * uridecodebin,
     GstDemuxerES * demuxer)
 {
-  GstDemuxerESPrivate *priv = demuxer->priv;
   GST_INFO ("No more pads received from %s", GST_ELEMENT_NAME (uridecodebin));
-  if (priv->state == DEMUXER_ES_STATE_IDLE)
-    set_demuxer_ready (demuxer);
 }
 
 static GstAutoplugSelectResult
@@ -469,6 +500,9 @@ gst_demuxer_es_new (const gchar * uri)
   g_mutex_init (&priv->queue_mutex);
   g_mutex_init (&priv->ready_mutex);
   g_cond_init (&priv->ready_cond);
+  g_cond_init (&priv->queue_item_del);
+  priv->max_queue_size = DEMUXER_ES_DEFAULT_MAX_QUEUE_SIZE;
+  priv->threshold_queue_size = DEMUXER_ES_DEFAULT_THRESHOLD_QUEUE_SIZE;
 
   priv->current_uri = get_gst_valid_uri(uri);
 
@@ -536,11 +570,12 @@ gst_demuxer_es_read_packet (GstDemuxerES * demuxer, GstDemuxerESPacket ** packet
   if (priv->state == DEMUXER_ES_STATE_ERROR) {
     return DEMUXER_ES_RESULT_ERROR;
   }
-
   queued_packet =
       (GstDemuxerESPacket *) g_async_queue_timeout_pop (priv->packets,
       G_TIME_SPAN_MILLISECOND * 100);
-
+  if (!queue_is_filled (priv, TRUE)) {
+    GST_QUEUE_SIGNAL_DEL (priv);
+  }
   if (queued_packet) {
     *packet = queued_packet;
     result = DEMUXER_ES_RESULT_NEW_PACKET;
@@ -585,6 +620,14 @@ gst_demuxer_es_find_best_stream (GstDemuxerES * demuxer,
 }
 
 void
+gst_demuxer_es_set_queue_attributes (GstDemuxerES * demuxer,
+    gint max_queue_size, gint threshold_queue_size)
+{
+  demuxer->priv->max_queue_size = max_queue_size;
+  demuxer->priv->threshold_queue_size = threshold_queue_size;
+}
+
+void
 gst_demuxer_es_teardown (GstDemuxerES * demuxer)
 {
   GstBus *bus;
@@ -598,6 +641,7 @@ gst_demuxer_es_teardown (GstDemuxerES * demuxer)
   g_list_free_full (priv->streams, (GDestroyNotify) gst_parse_stream_teardown);
   gst_object_unref (priv->pipeline);
 
+  g_cond_clear (&priv->queue_item_del);
   g_cond_clear (&priv->ready_cond);
   g_mutex_clear (&priv->ready_mutex);
   g_mutex_clear (&priv->queue_mutex);

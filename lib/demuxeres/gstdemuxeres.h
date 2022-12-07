@@ -122,6 +122,9 @@ typedef struct
   GstDemuxerData data;
 } GstDemuxerEStream;
 
+#define DEMUXER_ES_DEFAULT_MAX_QUEUE_SIZE 100
+#define DEMUXER_ES_DEFAULT_THRESHOLD_QUEUE_SIZE 10
+
 GST_DEMUXER_ES_API
 GstDemuxerES * gst_demuxer_es_new (const gchar * uri);
 
@@ -133,6 +136,9 @@ void gst_demuxer_es_clear_packet (GstDemuxerESPacket * packet);
 
 GST_DEMUXER_ES_API
 GstDemuxerEStream * gst_demuxer_es_find_best_stream (GstDemuxerES * demuxer, GstDemuxerEStreamType type);
+
+GST_DEMUXER_ES_API
+void gst_demuxer_es_set_queue_attributes (GstDemuxerES * demuxer, gint max_queue_size, gint threshold_queue_size);
 
 GST_DEMUXER_ES_API
 void gst_demuxer_es_teardown (GstDemuxerES * demuxer);
