@@ -5,4 +5,4 @@ source $SCRIPT_DIR/valgrind.env
 
 set -x
 #valgrind $VALGRIND_OPTS $*
-valgrind $VALGRIND_OPTS $* > valgrind_stdout.txt 2>&1
+valgrind $VALGRIND_OPTS $* >> valgrind_stdout.txt 2>&1
