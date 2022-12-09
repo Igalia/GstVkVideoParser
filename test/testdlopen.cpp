@@ -19,6 +19,7 @@
 #include <gmodule.h>
 
 #include "VideoParserClient.h"
+#include "vkvideodecodeparser.h"
 
 static GModule      *sParserModule = NULL;
 

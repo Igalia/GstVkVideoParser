@@ -19,6 +19,7 @@
 
 
 #include "VideoParserClient.h"
+#include "vkvideodecodeparser.h"
 
 #ifdef _DEBUG
 #   define DBG(FMT, ...) g_print(FMT, ##__VA_ARGS__)
