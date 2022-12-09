@@ -16,4 +16,11 @@
  */
 #include <glib.h>
 
+#ifdef _DEBUG
+#   define DBG(FMT, ...) g_print(FMT "\n", ##__VA_ARGS__)
+#else
+#   define DBG(FMT, ...)
+#endif
+#define INFO(FMT, ...) g_print(FMT "\n", ##__VA_ARGS__)
+#define ERR(FMT, ...) g_print("ERROR: " FMT "\n", ##__VA_ARGS__)
 

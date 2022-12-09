@@ -49,7 +49,7 @@ jobs:
         run: |
           ./builddir/test/testapp samples/Sample_10.avc > builddir/Sample_10.avc.ref;
           diff -u builddir/Sample_10.avc.ref samples/Sample_10.avc.ref;
-          ./builddir/test/testapp -c h265 samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
+          ./builddir/test/testapp samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
           diff -u builddir/Sample_10.hevc.ref samples/Sample_10.hevc.ref
 
       - name: Install
