@@ -18,7 +18,6 @@
 #include "vkvideodecodeparser.h"
 #include "gstvkvideoparser.h"
 
-#include <gst/codecparsers/gsth264parser.h>
 #include <vk_video/vulkan_video_codecs_common.h>
 
 
