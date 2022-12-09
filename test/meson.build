@@ -6,14 +6,14 @@ sources_dlopen = files('testdlopen.cpp', 'dump.cpp')
 
 gsttest = executable(
   'testapp', sources,
-  dependencies: [libvkvideoparser_dep, glib_dep],
+  dependencies: [libvkvideoparser_dep, glib_dep, vulkan_include_dep],
   override_options: _override_options,
 )
 
 gstdlopentest = executable(
   'testdlopenapp', sources_dlopen,
-  dependencies: [glib_dep, gmodule_dep],
-  include_directories: include_directories('../lib', '../lib/vkvideo_parser'),
+  dependencies: [glib_dep, gmodule_dep, vulkan_include_dep, libvkvideoparser_dep.partial_dependency(includes: true)],
+  include_directories: include_directories('../lib'),
   override_options: _override_options,
 )
 
@@ -29,8 +29,8 @@ endif
 nvtest = executable(
   'nvtestapp', sources,
   override_options: _override_options,
-  include_directories: include_directories('../lib', '../lib/vkvideo_parser'),
-  dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: external_libs_dir), glib_dep ]
+  include_directories: include_directories('../lib'),
+  dependencies: [ cpp.find_library('nvidia-vkvideo-parser', dirs: external_libs_dir), glib_dep, vulkan_include_dep, libvkvideoparser_dep.partial_dependency(includes: true) ]
 )
 
 h264sample = files(join_paths(source_root, 'samples', 'Sample_10.avc'))
