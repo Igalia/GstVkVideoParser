@@ -17,9 +17,10 @@
 
 #include <glib.h>
 #include <gmodule.h>
-
+#include "utils.h"
 #include "VideoParserClient.h"
 #include "vkvideodecodeparser.h"
+#include "gstdemuxeres.h"
 
 static GModule      *sParserModule = NULL;
 
@@ -31,20 +32,18 @@ static GModule      *sParserModule = NULL;
 #define VKPARSER_CREATE_VULKAN_PARSER_SYMBOL "_Z29CreateVulkanVideoDecodeParserPP23VulkanVideoDecodeParser32VkVideoCodecOperationFlagBitsKHRPK21VkExtensionPropertiesPFvPKczEi"
 #endif
 
-static VkVideoCodecOperationFlagBitsKHR codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
-
 typedef bool (* CreateVulkanVideoDecodeParserFunc)(VulkanVideoDecodeParser** ppobj, VkVideoCodecOperationFlagBitsKHR eCompression,
                                    const VkExtensionProperties* pStdExtensionVersion,
                                    nvParserLogFuncType pParserLogFunc, int logLevel);
 bool
-load_parser_from_library (const char *filename, VulkanVideoDecodeParser** parser)
+load_parser_from_library (const char *filename, VulkanVideoDecodeParser** parser, VkVideoCodecOperationFlagBitsKHR codec, const VkExtensionProperties * pStdExtensionVersion)
 {
     CreateVulkanVideoDecodeParserFunc  createParser;
 
     sParserModule = g_module_open (VKPARSER_LIB_FILENAME, G_MODULE_BIND_LAZY);
     if (!sParserModule)
     {
-        g_warning ("Unable to open the module %s: %s", filename, g_module_error ());
+        ERR ("Unable to open the module %s: %s", filename, g_module_error ());
         return FALSE;
     }
 
@@ -52,7 +51,7 @@ load_parser_from_library (const char *filename, VulkanVideoDecodeParser** parser
     {
         g_warning ("unable to find symbol %s %s: %s", VKPARSER_CREATE_VULKAN_PARSER_SYMBOL, filename, g_module_error ());
         if (!g_module_close (sParserModule))
-            g_warning ("%s: %s", filename, g_module_error ());
+            ERR ("%s: %s", filename, g_module_error ());
         return FALSE;
     }
 
@@ -60,29 +59,52 @@ load_parser_from_library (const char *filename, VulkanVideoDecodeParser** parser
     {
         g_warning ("Unable to get the symbol %s: %s", filename, g_module_error ());
         if (!g_module_close (sParserModule))
-            g_warning ("%s: %s", filename, g_module_error ());
+            ERR ("%s: %s", filename, g_module_error ());
         return FALSE;
+    }
+
+
+    return createParser(parser, codec, pStdExtensionVersion, (nvParserLogFuncType)printf, 50);
+ }
+
+static int parse(gchar* filename, bool quiet)
+{
+    bool ret;
+    VulkanVideoDecodeParser* parser = nullptr;
+    int32_t parsed;
+    VkParserBitstreamPacket pkt;
+    VkVideoCodecOperationFlagBitsKHR codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
+    gboolean result;
+    GstDemuxerESPacket * demuxer_pkt;
+    GstDemuxerEStream * demuxer_video_stream;
+    GstDemuxerES *demuxer = gst_demuxer_es_new (filename);
+
+    if (!demuxer) {
+        ERR ("Unable to create the demuxer.");
+        return false;
+    }
+
+    demuxer_video_stream =
+      gst_demuxer_es_find_best_stream (demuxer, DEMUXER_ES_STREAM_TYPE_VIDEO);
+    if (!demuxer_video_stream) {
+        ERR ("Unable to retrieve the video stream.");
+        return false;
     }
 
     static const VkExtensionProperties h264StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H264_DECODE_SPEC_VERSION };
     static const VkExtensionProperties h265StdExtensionVersion = { VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_EXTENSION_NAME, VK_STD_VULKAN_VIDEO_CODEC_H265_DECODE_SPEC_VERSION };
 
     const VkExtensionProperties* pStdExtensionVersion = NULL;
-    if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT) {
+    if (demuxer_video_stream->data.video.vcodec == DEMUXER_ES_VIDEO_CODEC_H264) {
+        codec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
         pStdExtensionVersion = &h264StdExtensionVersion;
-    } else if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT) {
+    } else if (demuxer_video_stream->data.video.vcodec == DEMUXER_ES_VIDEO_CODEC_H265) {
+        codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
         pStdExtensionVersion = &h265StdExtensionVersion;
     } else {
-        assert(!"Unsupported Codec Type");
+        ERR ("Unsupported Codec Type");
         return false;
     }
-
-    return createParser(parser, codec, pStdExtensionVersion, (nvParserLogFuncType)printf, 50);
- }
-
-static bool parse(FILE* stream, bool quiet)
-{
-    VulkanVideoDecodeParser* parser = nullptr;
 
     VideoParserClient client = VideoParserClient(codec, quiet);
     VkParserInitDecodeParameters params = {
@@ -90,78 +112,65 @@ static bool parse(FILE* stream, bool quiet)
         .pClient = &client,
         .bOutOfBandPictureParameters = true,
     };
-    bool ret;
-    unsigned char buf[BUFSIZ + 1];
-    size_t read;
-    int32_t parsed;
-    VkParserBitstreamPacket pkt;
 
-    ret = load_parser_from_library(VKPARSER_LIB_FILENAME, &parser);
-    
-    assert(ret);
-    if (!ret)
+    ret = load_parser_from_library(VKPARSER_LIB_FILENAME, &parser, codec, pStdExtensionVersion);
+    if (!ret) {
+        ERR ("Unable to load the parser from library");
         return ret;
-
-    ret = (parser->Initialize(&params) == VK_SUCCESS);
-    if (!ret)
-        return ret;
-    while (true) {
-        read = fread(buf, 1, BUFSIZ, stream);
-        if (read <= 0)
-            break;
-        pkt = VkParserBitstreamPacket {
-            .pByteStream = buf,
-            .nDataLength = static_cast<int32_t>(read),
-            .bEOS = read < BUFSIZ,
-        };
-
-        if (!parser->ParseByteStream(&pkt, &parsed)) {
-            fprintf(stdout, "failed to parse bitstream.\n");
-            break;
-        }
-
-        assert(pkt.nDataLength == parsed);
     }
 
+    ret = (parser->Initialize(&params) == VK_SUCCESS);
+    if (!ret) {
+        ERR ("Unable to initialize the parser");
+        return ret;
+    }
+
+    while ((result =
+            gst_demuxer_es_read_packet (demuxer,
+                &demuxer_pkt)) <= DEMUXER_ES_RESULT_NO_PACKET) {
+        if (result <= DEMUXER_ES_RESULT_EOS) {
+            if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
+                pkt = VkParserBitstreamPacket {
+                .pByteStream = demuxer_pkt->data,
+                .nDataLength = static_cast<int32_t>(demuxer_pkt->data_size),
+                .bEOS = (result == DEMUXER_ES_RESULT_LAST_PACKET),
+                };
+                DBG ("A %s packet of type %d stream_id %d with size %i.",
+                pkt.bEOS ? "new":"last",
+                demuxer_pkt->stream_type, demuxer_pkt->stream_id, pkt.nDataLength);
+                if (!parser->ParseByteStream(&pkt, &parsed)) {
+                   ERR ("failed to parse bitstream.");
+                   result = DEMUXER_ES_RESULT_ERROR;
+                   break;
+                }
+            } else {
+                DBG ("No packet available. Continue ...");
+            }
+            gst_demuxer_es_clear_packet (demuxer_pkt);
+        }
+    }
+    DBG ("The decode test ended with status %d", result);
+    ret = (parser->Deinitialize() == 0);
     ret = (parser->Release() == 0);
     assert(ret);
 
     if (!g_module_close (sParserModule))
-        g_warning ("%s: %s", VKPARSER_LIB_FILENAME, g_module_error ());
-
+        ERR ("%s: %s", VKPARSER_LIB_FILENAME, g_module_error ());
+    gst_demuxer_es_teardown (demuxer);
     return ret;
 }
 
-int process_file (gchar* filename, bool quiet) {
-    FILE* file;
-    fprintf(stdout, "Processing file %s.\n", filename);
-    file = fopen(filename, "r");
-    if (!file) {
-        g_printerr( "Unable to open: %s -- %s.\n", filename, strerror(errno));
-        return EXIT_FAILURE;
-    }
-
-    if (!parse(file, quiet)) {
-        fclose(file);
-        return EXIT_FAILURE;
-    }
-
-    fclose(file);
-    return EXIT_SUCCESS;
-}
 
 int main(int argc, char** argv)
 {
     GOptionContext *ctx;
     GError *err = NULL;
     gchar **filenames = NULL;
-    gchar *codec_str = NULL;
     gboolean quiet = FALSE;
     gint ret = EXIT_SUCCESS;
 
     static GOptionEntry entries[] = {
         { "quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet, "Quiet parser", NULL },
-        { "codec", 'c', 0, G_OPTION_ARG_STRING, &codec_str, "Codec to use ie h265", NULL },
         {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &filenames, NULL},
         { NULL }
     };
@@ -171,7 +180,7 @@ int main(int argc, char** argv)
     ctx = g_option_context_new ("TEST");
     g_option_context_add_main_entries (ctx, entries, NULL);
     if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
-        g_printerr ("Error initializing: %s\n", err->message);
+        ERR ("Error initializing: %s", err->message);
         g_clear_error (&err);
         g_option_context_free (ctx);
         exit (EXIT_FAILURE);
@@ -179,18 +188,16 @@ int main(int argc, char** argv)
     g_option_context_free (ctx);
 
     if (!(filenames != NULL && *filenames != NULL)) {
-        g_printerr ("Please provide one or more filenames.");
+        ERR ("Please provide one or more filenames.");
         exit (EXIT_FAILURE);
     }
 
-    if (codec_str && strcmp (codec_str, "h265") == 0)
-      codec = VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;
-
     int num = g_strv_length (filenames);
-    for (int i = 0; i < num; ++i)
-        ret |= process_file (filenames[i], quiet);
+    for (int i = 0; i < num; ++i) {
+        ret &= parse (filenames[i], quiet);
+    }
 
     g_strfreev (filenames);
 
-    return ret;
+    return ret ? EXIT_SUCCESS: EXIT_FAILURE;;
 }

@@ -18,22 +18,23 @@
 #include <gst/gst.h>
 #include "utils.h"
 #include "gstdemuxeres.h"
+#include "stdlib.h"
 
 void
 print_video_info (GstDemuxerEStream * stream)
 {
-  g_print ("video info: \n");
-  g_print ("\tcodec: %d\n", stream->data.video.vcodec);
-  g_print ("\tprofile: %s\n", stream->data.video.profile);
-  g_print ("\tlevel: %s\n", stream->data.video.level);
-  g_print ("\twidth: %d\n", stream->data.video.info.width);
-  g_print ("\theight: %d\n", stream->data.video.info.height);
-  g_print ("\tbitrate: %d\n", stream->data.video.bitrate);
-  g_print ("\tfps: %d/%d\n", stream->data.video.info.fps_d,
+  INFO ("video info: ");
+  INFO ("\tcodec: %d", stream->data.video.vcodec);
+  INFO ("\tprofile: %s", stream->data.video.profile);
+  INFO ("\tlevel: %s", stream->data.video.level);
+  INFO ("\twidth: %d", stream->data.video.info.width);
+  INFO ("\theight: %d", stream->data.video.info.height);
+  INFO ("\tbitrate: %d", stream->data.video.bitrate);
+  INFO ("\tfps: %d/%d", stream->data.video.info.fps_d,
       stream->data.video.info.fps_d);
-  g_print ("\tpar: %d/%d\n", stream->data.video.info.par_n,
+  INFO ("\tpar: %d/%d", stream->data.video.info.par_n,
       stream->data.video.info.par_d);
-  g_print ("\n");
+  INFO ("");
 }
 
 int
@@ -42,41 +43,42 @@ process_file (gchar * filename)
   GstDemuxerESPacket *pkt;
   GstDemuxerEStream *stream;
   GstDemuxerESResult result;
-  GstDemuxerES *parser = gst_demuxer_es_new (filename);
+  GstDemuxerES *demuxer = gst_demuxer_es_new (filename);
 
-  if (!parser) {
-    g_print ("An error occured during the parser creation.\n");
+  if (!demuxer) {
+    ERR ("An error occured during the parser creation.");
     return EXIT_FAILURE;
   }
 
   stream =
-      gst_demuxer_es_find_best_stream (parser, DEMUXER_ES_STREAM_TYPE_VIDEO);
+      gst_demuxer_es_find_best_stream (demuxer, DEMUXER_ES_STREAM_TYPE_VIDEO);
   if (!stream) {
-    g_print ("Unable to retrieve the video stream.\n");
+    ERR ("Unable to retrieve the video stream.");
     return EXIT_FAILURE;
   }
 
   print_video_info (stream);
 
   while ((result =
-    gst_demuxer_es_read_packet (parser,
-               &pkt)) <= DEMUXER_ES_RESULT_LAST_PACKET) {
+          gst_demuxer_es_read_packet (demuxer,
+              &pkt)) <= DEMUXER_ES_RESULT_LAST_PACKET) {
     if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
-       g_print ("A %s packet of type %d stream_id %d with size %lu.",
-       (result == DEMUXER_ES_RESULT_LAST_PACKET)? "last":"new",
-           pkt->stream_type, pkt->stream_id, pkt->data_size);
-       gst_demuxer_es_clear_packet (pkt);
+      INFO ("A %s packet of type %d stream_id %d with size %lu.",
+      (result == DEMUXER_ES_RESULT_LAST_PACKET)? "last":"new",
+          pkt->stream_type, pkt->stream_id, pkt->data_size);
+      gst_demuxer_es_clear_packet (pkt);
     } else {
-      g_print ("No packet available.\n");
+      ERR ("No packet available.");
     }
   }
 
   if (result == DEMUXER_ES_RESULT_ERROR) {
-    g_print ("An error occured during the read of frame.\n");
+    ERR ("An error occured during the read of frame.");
     return EXIT_FAILURE;
   } else if (result == DEMUXER_ES_RESULT_EOS)
-    g_print ("The parser exited with success.\n");
+    DBG ("The parser exited with success.");
 
+  gst_demuxer_es_teardown (demuxer);
   return EXIT_SUCCESS;
 }
 
@@ -101,14 +103,14 @@ main (int argc, char **argv)
   ctx = g_option_context_new ("TEST");
   g_option_context_add_main_entries (ctx, entries, NULL);
   if (!g_option_context_parse (ctx, &argc, &argv, &err)) {
-    g_printerr ("Error initializing: %s\n", err->message);
+    ERR ("Error initializing: %s", err->message);
     g_clear_error (&err);
     g_option_context_free (ctx);
     exit (EXIT_FAILURE);
   }
   g_option_context_free (ctx);
   if (!filenames) {
-    g_printerr ("Please provide one or more filenames.\n");
+    ERR ("Please provide one or more filenames.");
     exit (EXIT_FAILURE);
   }
 
