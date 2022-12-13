@@ -76,7 +76,7 @@ BeginSequence
 "VkParserSequenceInfo": {
     "eCodec": 1,
     "isSVC": false,
-    "frameRate": 491521,
+    "frameRate": 491521000,
     "bProgSeq": 1,
     "nDisplayWidth": 320,
     "nDisplayHeight": 240,
