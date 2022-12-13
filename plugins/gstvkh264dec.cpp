@@ -138,7 +138,7 @@ gst_vk_h264_dec_new_sequence (GstH264Decoder * decoder, const GstH264SPS * sps,
   seqInfo = VkParserSequenceInfo {
     .eCodec = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT,
     .isSVC = profile_is_svc(decoder->input_state->caps),
-    .frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info)),
+    .frameRate = pack_framerate(GST_VIDEO_INFO_FPS_N(&decoder->input_state->info), GST_VIDEO_INFO_FPS_D(&decoder->input_state->info)) * 1000,
     .bProgSeq = sps->frame_mbs_only_flag,
     .nCodedWidth = sps->width,
     .nCodedHeight = sps->height,
