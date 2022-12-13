@@ -16,7 +16,6 @@
  */
 
 #include <glib.h>
-#include <gmodule.h>
 
 #include <atomic>
 #include <cerrno>
