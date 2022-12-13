@@ -1,6 +1,3 @@
-glib_dep = dependency('glib-2.0')
-gmodule_dep = dependency('gmodule-2.0')
-
 sources = files('test.cpp', 'dump.cpp')
 sources_dlopen = files('testdlopen.cpp', 'dump.cpp')
 
