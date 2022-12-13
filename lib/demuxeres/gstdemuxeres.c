@@ -36,8 +36,8 @@ typedef enum
 typedef enum _GstDemuxerESState
 {
   DEMUXER_ES_STATE_IDLE = 0,
-  DEMUXER_ES_STATE_READY,
   DEMUXER_ES_STATE_ERROR,
+  DEMUXER_ES_STATE_READY,
   DEMUXER_ES_STATE_EOS,
 } GstDemuxerESState;
 
@@ -57,6 +57,8 @@ struct _GstDemuxerESPrivate
   GMutex queue_mutex;
   gint max_queue_size;
   gint threshold_queue_size;
+  GThread *bus_thread;
+  gboolean bus_exit;
 };
 
 #define GST_QUEUE_SIGNAL_DEL(q) G_STMT_START {                          \
@@ -101,11 +103,12 @@ queue_is_filled (GstDemuxerESPrivate * priv, gboolean threshold)
 }
 
 static inline void
-set_demuxer_ready (GstDemuxerES * demuxer)
+set_demuxer_state (GstDemuxerES * demuxer, GstDemuxerESState state)
 {
   GstDemuxerESPrivate *priv = demuxer->priv;
-
   g_mutex_lock (&priv->ready_mutex);
+  GST_LOG ("Set state %d", state);
+  priv->state = state;
   g_cond_signal (&priv->ready_cond);
   g_mutex_unlock (&priv->ready_mutex);
 }
@@ -141,9 +144,11 @@ appsink_new_sample_cb (GstAppSink * appsink, gpointer user_data)
     if (queue_is_filled (priv, FALSE)) {
       GST_QUEUE_WAIT_DEL_CHECK (priv);
     }
+    GST_LOG ("Pushing a buffer %d", packet->packet_number);
     g_async_queue_push (priv->packets, packet);
-    if (priv->state == DEMUXER_ES_STATE_IDLE)
-      set_demuxer_ready (demuxer);
+    if (priv->state == DEMUXER_ES_STATE_IDLE) {
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_READY);
+    }
   }
 
   return GST_FLOW_OK;
@@ -315,25 +320,17 @@ gst_parse_stream_create (GstDemuxerES * demuxer, GstPad * pad)
 }
 
 static inline gboolean
-wait_for_demuxer_ready (GstDemuxerES * demuxer, gint64 wait_time)
+wait_for_demuxer_ready (GstDemuxerES * demuxer)
 {
   GstDemuxerESPrivate *priv = demuxer->priv;
-  gboolean success = FALSE;
-  gint64 end_time = g_get_monotonic_time () + wait_time;
 
   g_mutex_lock (&priv->ready_mutex);
-  while (!success) {
-
-    success = g_cond_wait_until (&priv->ready_cond,
-        &priv->ready_mutex, end_time);
-    GST_DEBUG ("After wait success %d", success);
-
-    priv->state = success ? DEMUXER_ES_STATE_READY : DEMUXER_ES_RESULT_ERROR;
-    success = TRUE;
+  while (priv->state == DEMUXER_ES_STATE_IDLE) {
+    g_cond_wait (&priv->ready_cond, &priv->ready_mutex);
   }
   g_mutex_unlock (&priv->ready_mutex);
 
-  return (priv->state == DEMUXER_ES_STATE_READY);
+  return (priv->state >= DEMUXER_ES_STATE_READY);
 }
 
 static void
@@ -440,15 +437,29 @@ uridecodebin_autoplug_query_cb (GstElement * uridecodebin, GstPad * pad,
 static gboolean
 handle_bus_message (GstBus * bus, GstMessage * message, GstDemuxerES * demuxer)
 {
+  GstDemuxerESPrivate *priv = demuxer->priv;
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR:
     {
-      demuxer->priv->state = DEMUXER_ES_STATE_ERROR;
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_ERROR);;
       break;
     }
     case GST_MESSAGE_EOS:
     {
-      demuxer->priv->state = DEMUXER_ES_STATE_EOS;
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_EOS);;
+      break;
+    }
+    case GST_MESSAGE_ELEMENT:
+    {
+      const GstStructure *s;
+      const char *sname;
+      s = gst_message_get_structure (message);
+      sname = gst_structure_get_name (s);
+      if ((GST_MESSAGE_SRC (message) == GST_OBJECT (priv->pipeline)) &&
+          (!g_strcmp0 (sname, "exit"))) {
+        GST_DEBUG ("`exit` message received");
+        priv->bus_exit = TRUE;
+      }
       break;
     }
     default:
@@ -465,18 +476,28 @@ check_for_bus_message (GstDemuxerES * demuxer)
   GstDemuxerESPrivate *priv = demuxer->priv;
   GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (priv->pipeline));
   gboolean check_message = TRUE;
-  gboolean terminate = FALSE;
   while (check_message) {
     GstMessage *message = gst_bus_timed_pop (bus, 1);
     if (G_LIKELY (message)) {
-      terminate = handle_bus_message (bus, message, demuxer);
+      handle_bus_message (bus, message, demuxer);
       gst_message_unref (message);
     } else
       check_message = FALSE;
   }
   gst_object_unref (bus);
 
-  return terminate;
+  return TRUE;
+}
+
+static gpointer
+check_for_bus_message_cb (gpointer data)
+{
+  GstDemuxerES *demuxer = (GstDemuxerES *) data;
+  GstDemuxerESPrivate *priv = demuxer->priv;
+  while (!priv->bus_exit) {
+    check_for_bus_message (demuxer);
+  }
+  return NULL;
 }
 
 GstDemuxerES *
@@ -504,7 +525,7 @@ gst_demuxer_es_new (const gchar * uri)
   priv->max_queue_size = DEMUXER_ES_DEFAULT_MAX_QUEUE_SIZE;
   priv->threshold_queue_size = DEMUXER_ES_DEFAULT_THRESHOLD_QUEUE_SIZE;
 
-  priv->current_uri = get_gst_valid_uri(uri);
+  priv->current_uri = get_gst_valid_uri (uri);
 
   priv->packets = g_async_queue_new_full ((GDestroyNotify) g_free);
 
@@ -524,6 +545,9 @@ gst_demuxer_es_new (const gchar * uri)
 
   gst_bin_add_many (GST_BIN (priv->pipeline), uridecodebin, NULL);
 
+  priv->bus_thread =
+      g_thread_new ("gst_bus_thread", check_for_bus_message_cb, demuxer);
+
   sret = gst_element_set_state (priv->pipeline, GST_STATE_PLAYING);
   switch (sret) {
     case GST_STATE_CHANGE_FAILURE:
@@ -542,8 +566,8 @@ gst_demuxer_es_new (const gchar * uri)
     default:
       break;
   }
-  if (demuxer && !wait_for_demuxer_ready (demuxer, 5 * G_TIME_SPAN_SECOND)) {
-    GST_ERROR ("The demuxer never got ready after 5s");
+  if (demuxer && !wait_for_demuxer_ready (demuxer)) {
+    GST_ERROR ("The demuxer did not get ready state = %d", priv->state);
     gst_demuxer_es_teardown (demuxer);
     demuxer = NULL;
   }
@@ -553,13 +577,15 @@ gst_demuxer_es_new (const gchar * uri)
 void
 gst_demuxer_es_clear_packet (GstDemuxerESPacket * packet)
 {
+  GST_LOG ("clear packet: %d", packet->packet_number);
   gst_sample_unref (packet->priv->sample);
   g_free (packet->priv);
-  g_free(packet);
+  g_free (packet);
 }
 
 GstDemuxerESResult
-gst_demuxer_es_read_packet (GstDemuxerES * demuxer, GstDemuxerESPacket ** packet)
+gst_demuxer_es_read_packet (GstDemuxerES * demuxer,
+    GstDemuxerESPacket ** packet)
 {
   GstDemuxerESPacket *queued_packet;
 
@@ -579,8 +605,9 @@ gst_demuxer_es_read_packet (GstDemuxerES * demuxer, GstDemuxerESPacket ** packet
   if (queued_packet) {
     *packet = queued_packet;
     result = DEMUXER_ES_RESULT_NEW_PACKET;
-    if (priv->state == DEMUXER_ES_STATE_EOS && g_async_queue_length(priv->packets) == 0) {
-      result =  DEMUXER_ES_RESULT_LAST_PACKET;
+    if (priv->state == DEMUXER_ES_STATE_EOS
+        && g_async_queue_length (priv->packets) == 0) {
+      result = DEMUXER_ES_RESULT_LAST_PACKET;
     }
   } else {
     if (priv->state == DEMUXER_ES_STATE_EOS)
@@ -627,15 +654,32 @@ gst_demuxer_es_set_queue_attributes (GstDemuxerES * demuxer,
   demuxer->priv->threshold_queue_size = threshold_queue_size;
 }
 
+static void
+_gst_demuxer_es_cleanup_bus_watch (GstDemuxerES * demuxer)
+{
+  g_assert (demuxer != NULL);
+  GstDemuxerESPrivate *priv = demuxer->priv;
+  GstBus *bus = gst_element_get_bus (demuxer->priv->pipeline);
+  GThread *bus_thread = priv->bus_thread;
+  if (G_LIKELY (bus) && priv->bus_thread) {
+    gst_bus_post (bus,
+        gst_message_new_element (GST_OBJECT (priv->pipeline),
+            gst_structure_new_empty ("exit")));
+    GST_LOG ("waiting for message bus thread");
+    priv->bus_thread = NULL;
+    gst_object_unref (bus);
+
+    g_thread_join (bus_thread);
+  }
+  priv->bus_exit = TRUE;
+}
+
 void
 gst_demuxer_es_teardown (GstDemuxerES * demuxer)
 {
-  GstBus *bus;
   GstDemuxerESPrivate *priv = demuxer->priv;
+  _gst_demuxer_es_cleanup_bus_watch (demuxer);
   gst_element_set_state (priv->pipeline, GST_STATE_NULL);
-  bus = gst_element_get_bus (priv->pipeline);
-  gst_bus_set_flushing (bus, TRUE);
-  gst_object_unref (bus);
 
   g_async_queue_unref (priv->packets);
   g_list_free_full (priv->streams, (GDestroyNotify) gst_parse_stream_teardown);

@@ -40,10 +40,10 @@ demuxerestest = executable(
 h264sample = files(join_paths(source_root, 'samples', 'Sample_10.avc'))
 h265sample = files(join_paths(source_root, 'samples', 'Sample_10.hevc'))
 
-test('test', gsttest, args: [h264sample], suite: ['h264', 'gst'])
-test('test', nvtest, args: [ h264sample], suite: ['h264', 'nv'])
+test('test', gsttest, args: ['-q',h264sample], suite: ['h264', 'gst'])
+test('test', nvtest, args: ['-q',h264sample], suite: ['h264', 'nv'])
 test('test', demuxerestest, args: [ h264sample], suite: ['h264', 'demuxeres'])
 
-test('test', gsttest, args: [h265sample], suite: ['h265', 'gst'])
-test('test', nvtest, args: [h265sample], suite: ['h265', 'nv'])
+test('test', gsttest, args: ['-q',h265sample], suite: ['h265', 'gst'])
+test('test', nvtest, args: ['-q',h265sample], suite: ['h265', 'nv'])
 test('test', demuxerestest, args: [ h265sample], suite: ['h265', 'demuxeres'])
