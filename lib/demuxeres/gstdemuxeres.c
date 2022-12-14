@@ -44,40 +44,27 @@ typedef enum _GstDemuxerESState
 struct _GstDemuxerESPrivate
 {
   GstElement *pipeline;
-  gchar *current_uri;
+  GstElement *funnel;
+  GstElement *appsink;
 
-  GAsyncQueue *packets;
+  gint current_stream_id;
+  gint current_stream_type;
+
   GList *streams;
 
   GstDemuxerESState state;
   GCond ready_cond;
   GMutex ready_mutex;
-  gboolean waiting_del;
-  GCond queue_item_del;
-  GMutex queue_mutex;
-  gint max_queue_size;
-  gint threshold_queue_size;
+
   GThread *bus_thread;
   gboolean bus_exit;
+  GstSample *pending_sample;
 };
-
-#define GST_QUEUE_SIGNAL_DEL(q) G_STMT_START {                          \
-  if (q->waiting_del) {                                                 \
-    g_cond_signal (&q->queue_item_del);                                        \
-  }                                                                     \
-} G_STMT_END
-
-#define GST_QUEUE_WAIT_DEL_CHECK(q) G_STMT_START {         \
-  q->waiting_del = TRUE;                                                \
-  GST_LOG("Wait for the queue to empty.. %d", g_async_queue_length(priv->packets)); \
-  g_cond_wait (&q->queue_item_del, &q->queue_mutex);                              \
-  q->waiting_del = FALSE;                                               \
-} G_STMT_END
 
 
 static gchar *
-get_gst_valid_uri (const gchar * filename) {
-
+get_gst_valid_uri (const gchar * filename)
+{
   if (gst_uri_is_valid (filename)) {
     return g_strdup (filename);
   }
@@ -88,19 +75,9 @@ get_gst_valid_uri (const gchar * filename) {
 struct _GstDemuxerESPacketPrivate
 {
   GstSample *sample;
+  GstMapInfo map;
 };
 
-static gboolean
-queue_is_filled (GstDemuxerESPrivate * priv, gboolean threshold)
-{
-  gint queue_size, max_queue_size;
-  queue_size = g_async_queue_length (priv->packets);
-  GST_LOG ("Queue size: %d", queue_size);
-  max_queue_size =
-      priv->max_queue_size - (threshold ? priv->threshold_queue_size : 0);
-  GST_LOG ("Queue size: %d Max queue size: %d", queue_size, max_queue_size);
-  return (queue_size >= max_queue_size);
-}
 
 static inline void
 set_demuxer_state (GstDemuxerES * demuxer, GstDemuxerESState state)
@@ -113,45 +90,118 @@ set_demuxer_state (GstDemuxerES * demuxer, GstDemuxerESState state)
   g_mutex_unlock (&priv->ready_mutex);
 }
 
-static GstFlowReturn
-appsink_new_sample_cb (GstAppSink * appsink, gpointer user_data)
+static GstDemuxerEStream *
+find_stream (GstDemuxerES * demuxer, const gchar * stream_id)
 {
-  GstSample *sample;
-  GstBuffer *buffer;
-  GstDemuxerEStream *stream = user_data;
-  GstDemuxerES *demuxer = stream->demuxer;
   GstDemuxerESPrivate *priv = demuxer->priv;
+  GList *l;
 
-  sample = gst_app_sink_pull_sample (appsink);
-  buffer = gst_sample_get_buffer (sample);
-  if (buffer) {
-    GstDemuxerESPacket *packet = g_new0 (GstDemuxerESPacket, 1);
-    packet->priv = g_new0 (GstDemuxerESPacketPrivate, 1);
-    packet->priv->sample = sample;
-    GstMapInfo mi;
-    gst_buffer_map (buffer, &mi, GST_MAP_READ);
-    packet->data = mi.data;
-    packet->data_size = mi.size;
-    gst_buffer_unmap (buffer, &mi);
-    packet->stream_type = stream->type;
-    packet->stream_id = stream->id;
-    packet_counter++;
-    packet->packet_number = packet_counter;
-    packet->pts = GST_BUFFER_PTS (buffer);
-    packet->dts = GST_BUFFER_DTS (buffer);
-    packet->duration = GST_BUFFER_DURATION (buffer);
-
-    if (queue_is_filled (priv, FALSE)) {
-      GST_QUEUE_WAIT_DEL_CHECK (priv);
+  for (l = priv->streams; l != NULL; l = g_list_next (l)) {
+    GstDemuxerEStream *stream = l->data;
+    if (!g_strcmp0 (stream->stream_id, stream_id)) {
+      return stream;
     }
-    GST_LOG ("Pushing a buffer %d", packet->packet_number);
-    g_async_queue_push (priv->packets, packet);
-    if (priv->state == DEMUXER_ES_STATE_IDLE) {
-      set_demuxer_state (demuxer, DEMUXER_ES_STATE_READY);
+  }
+  return NULL;
+}
+
+static gboolean
+appsink_handle_event (GstDemuxerES * demuxer, GstEvent * event)
+{
+  GstDemuxerESPrivate *priv = demuxer->priv;
+  gboolean ret = FALSE;
+  GST_LOG ("%" GST_PTR_FORMAT, event);
+  switch (GST_EVENT_TYPE (event)) {
+    // Each time the funnel receives this event it will tell the next buffer type and id
+    // by changing the global current value.
+    case GST_EVENT_STREAM_START:{
+      const gchar *stream_id;
+      GstDemuxerEStream *stream;
+      gst_event_parse_stream_start (event, &stream_id);
+      stream = find_stream (demuxer, stream_id);
+      if (stream) {
+        priv->current_stream_id = stream->id;
+        priv->current_stream_type = stream->type;
+      } else {
+        GST_WARNING ("Received GST_EVENT_STREAM_START for an unknown stream id %s", stream_id);
+      }
+      ret = TRUE;
+      break;
+    }
+    case GST_EVENT_STREAM_GROUP_DONE:{
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_EOS);
+      ret = TRUE;
+      break;
+    }
+    default:
+      break;
+  }
+  gst_event_unref (event);
+  return ret;
+}
+
+static GstDemuxerESPacket *
+appsink_read_packet (GstDemuxerES * demuxer)
+{
+  GstSample *sample = NULL;
+  GstBuffer *buffer;
+  GstDemuxerESPacket *packet = NULL;
+  GstDemuxerESPrivate *priv = demuxer->priv;
+  GstMiniObject *object;
+
+  if (!priv->pending_sample) {
+    while ((object =
+            gst_app_sink_try_pull_object (GST_APP_SINK (priv->appsink), -1))) {
+      if (GST_IS_EVENT (object)) {
+        appsink_handle_event (demuxer, GST_EVENT (object));
+      } else if (GST_IS_SAMPLE (object)) {
+        sample = GST_SAMPLE (object);
+        break;
+      }
+    }
+  } else {
+    sample = priv->pending_sample;
+    priv->pending_sample = NULL;
+  }
+
+  if (sample) {
+    buffer = gst_sample_get_buffer (sample);
+    if (buffer) {
+      packet = g_new (GstDemuxerESPacket, 1);
+      *packet = (GstDemuxerESPacket) {
+        .priv = NULL,
+        .stream_type = priv->current_stream_type,
+        .stream_id = priv->current_stream_id,
+        .packet_number = packet_counter,
+        .pts = GST_BUFFER_PTS (buffer),
+        .dts = GST_BUFFER_DTS (buffer),
+        .duration = GST_BUFFER_DURATION (buffer)
+      };
+      packet->priv = g_new (GstDemuxerESPacketPrivate, 1),
+      packet->priv->sample = sample;
+      packet_counter++;
+      gst_buffer_map (buffer, &packet->priv->map, GST_MAP_READ);
+      packet->data = packet->priv->map.data;
+      packet->data_size = packet->priv->map.size;
+      GST_LOG ("A new packet of size %ld is available", packet->data_size);
+    }
+  } else {
+    GST_ERROR ("no sample available");
+  }
+  //Look for stream_start or eos event
+  while ((object =
+          gst_app_sink_try_pull_object (GST_APP_SINK (priv->appsink), -1))) {
+    if (GST_IS_EVENT (object)) {
+      if (appsink_handle_event (demuxer, GST_EVENT (object))) {
+        break;
+      }
+    } else if (GST_IS_SAMPLE (object)) {
+      priv->pending_sample = GST_SAMPLE (object);
+      break;
     }
   }
 
-  return GST_FLOW_OK;
+  return packet;
 }
 
 static GstDemuxerEStreamType
@@ -240,9 +290,11 @@ gst_parse_stream_teardown (GstDemuxerEStream * stream)
     case DEMUXER_ES_STREAM_TYPE_VIDEO:
       g_free (stream->data.video.profile);
       g_free (stream->data.video.level);
+      break;
     default:
       break;
   }
+  g_free (stream->stream_id);
   g_free (stream);
 }
 
@@ -250,11 +302,7 @@ GstDemuxerEStream *
 gst_parse_stream_create (GstDemuxerES * demuxer, GstPad * pad)
 {
   GstDemuxerEStream *stream;
-  GstElement *appsink = NULL;
-  GstAppSinkCallbacks callbacks = { 0, };
-  GstPad *sinkpad;
   GstDemuxerESPrivate *priv = demuxer->priv;
-  GstPadLinkReturn link;
   GstCaps *caps = gst_pad_query_caps (pad, NULL);
 
   if (!caps) {
@@ -267,7 +315,7 @@ gst_parse_stream_create (GstDemuxerES * demuxer, GstPad * pad)
   stream = g_new0 (GstDemuxerEStream, 1);
   stream->demuxer = demuxer;
   stream->type = gst_parse_stream_get_type_from_pad (pad);
-
+  stream->stream_id = gst_pad_get_stream_id (GST_PAD_CAST (pad));
   GstStructure *s = gst_caps_get_structure (caps, 0);
   switch (stream->type) {
     case DEMUXER_ES_STREAM_TYPE_VIDEO:
@@ -291,31 +339,9 @@ gst_parse_stream_create (GstDemuxerES * demuxer, GstPad * pad)
     default:
       break;
   }
-  stream->id = g_list_length (priv->streams);
-
-  appsink = gst_element_factory_make ("appsink", NULL);
-  g_object_set (appsink, "sync", FALSE, "emit-signals", TRUE, NULL);
-
-  gst_bin_add_many (GST_BIN (priv->pipeline), appsink, NULL);
-  sinkpad = gst_element_get_static_pad (appsink, "sink");
-  if ((link = gst_pad_link (pad, sinkpad)) != GST_PAD_LINK_OK) {
-    GST_ERROR ("Unable to link the appsink with the parser link status %d",
-        link);
-    gst_parse_stream_teardown (stream);
-    stream = NULL;
-  }
-
-  GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (priv->pipeline),
-      GST_DEBUG_GRAPH_SHOW_ALL, "gst-demuxerer.stream_create");
-
-  if (appsink)
-    gst_element_sync_state_with_parent (appsink);
-
-  callbacks.new_sample = appsink_new_sample_cb;
-  gst_app_sink_set_callbacks ((GstAppSink *) appsink, &callbacks, stream, NULL);
-
   gst_caps_unref (caps);
-  gst_object_unref (sinkpad);
+
+  stream->id = g_list_length (priv->streams);
   return stream;
 }
 
@@ -338,6 +364,8 @@ uridecodebin_pad_added_cb (GstElement * uridecodebin, GstPad * pad,
     GstDemuxerES * demuxer)
 {
   GstDemuxerEStream *stream = NULL;
+  GstPad *funnel_pad;
+  GstDemuxerESPrivate *priv = demuxer->priv;
 
   if (!GST_PAD_IS_SRC (pad))
     return;
@@ -349,6 +377,16 @@ uridecodebin_pad_added_cb (GstElement * uridecodebin, GstPad * pad,
     return;
 
   demuxer->priv->streams = g_list_append (demuxer->priv->streams, stream);
+
+  funnel_pad = gst_element_request_pad_simple (priv->funnel, "sink_%u");
+
+  if (gst_pad_link (pad, funnel_pad) != GST_PAD_LINK_OK)
+    GST_ERROR ("Unable to plug the pad %p to the capsfilter pad", pad);
+  gst_object_unref (funnel_pad);
+
+  GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (priv->pipeline),
+      GST_DEBUG_GRAPH_SHOW_ALL, "gst-demuxerer.stream_create");
+
   GST_DEBUG ("Done linking");
 }
 
@@ -357,6 +395,9 @@ uridecodebin_pad_no_more_pads (GstElement * uridecodebin,
     GstDemuxerES * demuxer)
 {
   GST_INFO ("No more pads received from %s", GST_ELEMENT_NAME (uridecodebin));
+  if (demuxer->priv->state == DEMUXER_ES_STATE_IDLE) {
+    set_demuxer_state (demuxer, DEMUXER_ES_STATE_READY);
+  }
 }
 
 static GstAutoplugSelectResult
@@ -413,7 +454,7 @@ autoplug_query_caps (GstElement * uridecodebin, GstPad * pad,
     gst_caps_unref (caps);
     if (result) {
       gst_query_set_caps_result (query, result);
-      GST_INFO ("the caps is %" GST_PTR_FORMAT, result);
+      GST_DEBUG ("the caps is %" GST_PTR_FORMAT, result);
       gst_caps_unref (result);
     }
   }
@@ -507,32 +548,30 @@ gst_demuxer_es_new (const gchar * uri)
   GstDemuxerESPrivate *priv;
   GstElement *uridecodebin;
   GstStateChangeReturn sret;
+  gchar *current_uri;
 
   if (!gst_init_check (NULL, NULL, NULL))
     return NULL;
 
-  GST_DEBUG_CATEGORY_INIT (demuxer_es_debug, "demuxeres",
-      0, "demuxeres");
+  GST_DEBUG_CATEGORY_INIT (demuxer_es_debug, "demuxeres", 0, "demuxeres");
 
   demuxer = g_new0 (GstDemuxerES, 1);
   g_assert (demuxer != NULL);
   demuxer->priv = g_new0 (GstDemuxerESPrivate, 1);
   priv = demuxer->priv;
-  g_mutex_init (&priv->queue_mutex);
+
   g_mutex_init (&priv->ready_mutex);
   g_cond_init (&priv->ready_cond);
-  g_cond_init (&priv->queue_item_del);
-  priv->max_queue_size = DEMUXER_ES_DEFAULT_MAX_QUEUE_SIZE;
-  priv->threshold_queue_size = DEMUXER_ES_DEFAULT_THRESHOLD_QUEUE_SIZE;
 
-  priv->current_uri = get_gst_valid_uri (uri);
-
-  priv->packets = g_async_queue_new_full ((GDestroyNotify) g_free);
+  current_uri = get_gst_valid_uri (uri);
 
   priv->pipeline = gst_pipeline_new ("demuxeres");
 
   uridecodebin = gst_element_factory_make ("uridecodebin", NULL);
-  g_object_set (G_OBJECT (uridecodebin), "uri", priv->current_uri, NULL);
+  GST_DEBUG ("New demuxeres with uri: %s", current_uri);
+  g_object_set (G_OBJECT (uridecodebin), "uri", current_uri, NULL);
+
+  g_free (current_uri);
 
   g_signal_connect (uridecodebin, "pad-added",
       G_CALLBACK (uridecodebin_pad_added_cb), demuxer);
@@ -543,7 +582,14 @@ gst_demuxer_es_new (const gchar * uri)
   g_signal_connect (uridecodebin, "autoplug-query",
       G_CALLBACK (uridecodebin_autoplug_query_cb), demuxer);
 
-  gst_bin_add_many (GST_BIN (priv->pipeline), uridecodebin, NULL);
+  priv->funnel = gst_element_factory_make ("funnel", "funnel_demuxeres");
+  priv->appsink = gst_element_factory_make ("appsink", NULL);
+  g_object_set (priv->appsink, "sync", FALSE, NULL);
+
+  gst_bin_add_many (GST_BIN (priv->pipeline), uridecodebin, priv->funnel,
+      priv->appsink, NULL);
+
+  gst_element_link_many (priv->funnel, priv->appsink, NULL);
 
   priv->bus_thread =
       g_thread_new ("gst_bus_thread", check_for_bus_message_cb, demuxer);
@@ -578,6 +624,8 @@ void
 gst_demuxer_es_clear_packet (GstDemuxerESPacket * packet)
 {
   GST_LOG ("clear packet: %d", packet->packet_number);
+  GstBuffer *buffer = gst_sample_get_buffer (packet->priv->sample);
+  gst_buffer_unmap (buffer, &packet->priv->map);
   gst_sample_unref (packet->priv->sample);
   g_free (packet->priv);
   g_free (packet);
@@ -596,24 +644,20 @@ gst_demuxer_es_read_packet (GstDemuxerES * demuxer,
   if (priv->state == DEMUXER_ES_STATE_ERROR) {
     return DEMUXER_ES_RESULT_ERROR;
   }
-  queued_packet =
-      (GstDemuxerESPacket *) g_async_queue_timeout_pop (priv->packets,
-      G_TIME_SPAN_MILLISECOND * 100);
-  if (!queue_is_filled (priv, TRUE)) {
-    GST_QUEUE_SIGNAL_DEL (priv);
-  }
+
+  queued_packet = appsink_read_packet (demuxer);
+
   if (queued_packet) {
     *packet = queued_packet;
     result = DEMUXER_ES_RESULT_NEW_PACKET;
-    if (priv->state == DEMUXER_ES_STATE_EOS
-        && g_async_queue_length (priv->packets) == 0) {
+    if (priv->state == DEMUXER_ES_STATE_EOS) {
       result = DEMUXER_ES_RESULT_LAST_PACKET;
+      GST_LOG ("A %s packet of type %d stream_id %d with size %lu.",
+          (result == DEMUXER_ES_RESULT_LAST_PACKET) ? "last" : "new",
+          queued_packet->stream_type, queued_packet->stream_id,
+          queued_packet->data_size);
     }
-  } else {
-    if (priv->state == DEMUXER_ES_STATE_EOS)
-      result = DEMUXER_ES_RESULT_EOS;
   }
-
   return result;
 }
 
@@ -646,14 +690,6 @@ gst_demuxer_es_find_best_stream (GstDemuxerES * demuxer,
   return NULL;
 }
 
-void
-gst_demuxer_es_set_queue_attributes (GstDemuxerES * demuxer,
-    gint max_queue_size, gint threshold_queue_size)
-{
-  demuxer->priv->max_queue_size = max_queue_size;
-  demuxer->priv->threshold_queue_size = threshold_queue_size;
-}
-
 static void
 _gst_demuxer_es_cleanup_bus_watch (GstDemuxerES * demuxer)
 {
@@ -681,15 +717,11 @@ gst_demuxer_es_teardown (GstDemuxerES * demuxer)
   _gst_demuxer_es_cleanup_bus_watch (demuxer);
   gst_element_set_state (priv->pipeline, GST_STATE_NULL);
 
-  g_async_queue_unref (priv->packets);
   g_list_free_full (priv->streams, (GDestroyNotify) gst_parse_stream_teardown);
   gst_object_unref (priv->pipeline);
 
-  g_cond_clear (&priv->queue_item_del);
   g_cond_clear (&priv->ready_cond);
   g_mutex_clear (&priv->ready_mutex);
-  g_mutex_clear (&priv->queue_mutex);
-  g_free (priv->current_uri);
   g_free (priv);
   demuxer->priv = NULL;
   g_free (demuxer);
