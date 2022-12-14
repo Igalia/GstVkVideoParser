@@ -44,6 +44,7 @@ process_file (gchar * filename)
   GstDemuxerEStream *stream;
   GstDemuxerESResult result;
   GstDemuxerES *demuxer = gst_demuxer_es_new (filename);
+  gint count = 0;
 
   if (!demuxer) {
     ERR ("An error occured during the parser creation.");
@@ -61,12 +62,15 @@ process_file (gchar * filename)
 
   while ((result =
           gst_demuxer_es_read_packet (demuxer,
-              &pkt)) <= DEMUXER_ES_RESULT_LAST_PACKET) {
+              &pkt)) <= DEMUXER_ES_RESULT_NO_PACKET) {
     if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
       INFO ("A %s packet of type %d stream_id %d with size %lu.",
       (result == DEMUXER_ES_RESULT_LAST_PACKET)? "last":"new",
           pkt->stream_type, pkt->stream_id, pkt->data_size);
+      count++;
       gst_demuxer_es_clear_packet (pkt);
+      if(result == DEMUXER_ES_RESULT_LAST_PACKET)
+        break;
     } else {
       ERR ("No packet available.");
     }
@@ -75,8 +79,8 @@ process_file (gchar * filename)
   if (result == DEMUXER_ES_RESULT_ERROR) {
     ERR ("An error occured during the read of frame.");
     return EXIT_FAILURE;
-  } else if (result == DEMUXER_ES_RESULT_EOS)
-    DBG ("The parser exited with success.");
+  } else if (result == DEMUXER_ES_RESULT_LAST_PACKET)
+    DBG ("The parser exited with success. Found %d packet(s).", count);
 
   gst_demuxer_es_teardown (demuxer);
   return EXIT_SUCCESS;

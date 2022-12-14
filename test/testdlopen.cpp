@@ -128,26 +128,28 @@ static int parse(gchar* filename, bool quiet)
     while ((result =
             gst_demuxer_es_read_packet (demuxer,
                 &demuxer_pkt)) <= DEMUXER_ES_RESULT_NO_PACKET) {
-        if (result <= DEMUXER_ES_RESULT_EOS) {
-            if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
-                pkt = VkParserBitstreamPacket {
-                .pByteStream = demuxer_pkt->data,
-                .nDataLength = static_cast<int32_t>(demuxer_pkt->data_size),
-                .bEOS = (result == DEMUXER_ES_RESULT_LAST_PACKET),
-                };
-                DBG ("A %s packet of type %d stream_id %d with size %i.",
-                pkt.bEOS ? "new":"last",
-                demuxer_pkt->stream_type, demuxer_pkt->stream_id, pkt.nDataLength);
-                if (!parser->ParseByteStream(&pkt, &parsed)) {
-                   ERR ("failed to parse bitstream.");
-                   result = DEMUXER_ES_RESULT_ERROR;
-                   break;
-                }
-            } else {
-                DBG ("No packet available. Continue ...");
+        
+        if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
+            pkt = VkParserBitstreamPacket {
+            .pByteStream = demuxer_pkt->data,
+            .nDataLength = static_cast<int32_t>(demuxer_pkt->data_size),
+            .bEOS = (result == DEMUXER_ES_RESULT_LAST_PACKET),
+            };
+            DBG ("A %s packet of type %d stream_id %d with size %i.",
+            pkt.bEOS ? "new":"last",
+            demuxer_pkt->stream_type, demuxer_pkt->stream_id, pkt.nDataLength);
+            if (!parser->ParseByteStream(&pkt, &parsed)) {
+                ERR ("failed to parse bitstream.");
+                result = DEMUXER_ES_RESULT_ERROR;
+                break;
             }
-            gst_demuxer_es_clear_packet (demuxer_pkt);
+        } else {
+            DBG ("No packet available. Continue ...");
         }
+        gst_demuxer_es_clear_packet (demuxer_pkt);
+        if (result == DEMUXER_ES_RESULT_LAST_PACKET)
+            break;
+
     }
     DBG ("The decode test ended with status %d", result);
     ret = (parser->Deinitialize() == 0);
@@ -157,7 +159,9 @@ static int parse(gchar* filename, bool quiet)
     if (!g_module_close (sParserModule))
         ERR ("%s: %s", VKPARSER_LIB_FILENAME, g_module_error ());
     gst_demuxer_es_teardown (demuxer);
-    return ret;
+    if (result != DEMUXER_ES_RESULT_LAST_PACKET)
+        ERR ("The decode test ended with status %d", result);
+    return (result == DEMUXER_ES_RESULT_LAST_PACKET);
 }
 
 

@@ -82,8 +82,7 @@ static gboolean parse(gchar* filename, bool quiet)
     while ((result =
             gst_demuxer_es_read_packet (demuxer,
                 &demuxer_pkt)) <= DEMUXER_ES_RESULT_NO_PACKET) {
-        if (result <= DEMUXER_ES_RESULT_EOS) {
-            if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
+        if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
                 pkt = VkParserBitstreamPacket {
                 .pByteStream = demuxer_pkt->data,
                 .nDataLength = static_cast<int32_t>(demuxer_pkt->data_size),
@@ -96,21 +95,24 @@ static gboolean parse(gchar* filename, bool quiet)
                    ERR ("failed to parse bitstream.");
                    result = DEMUXER_ES_RESULT_ERROR;
                 }
-            } else {
-                DBG ("No packet available. Continue ...");
-                continue;
-            }
-            gst_demuxer_es_clear_packet (demuxer_pkt);
+                
+        } else {
+            DBG ("No packet available. Continue ...");
+            continue;
         }
+        gst_demuxer_es_clear_packet (demuxer_pkt);
+        if (result == DEMUXER_ES_RESULT_LAST_PACKET)
+            break;
     }
+    
 
     ret = (parser->Deinitialize() == 0);
     ret = (parser->Release() == 0);
     assert(ret);
     gst_demuxer_es_teardown (demuxer);
-    if (result != DEMUXER_ES_RESULT_EOS)
+    if (result != DEMUXER_ES_RESULT_LAST_PACKET)
         ERR ("The decode test ended with status %d", result);
-    return (result == DEMUXER_ES_RESULT_EOS);
+    return (result == DEMUXER_ES_RESULT_LAST_PACKET);
 }
 
 
