@@ -43,7 +43,8 @@ jobs:
         run: meson compile --verbose -C builddir
 
       - name: Test
-        run: meson test --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
+        run: |
+          meson test --num-processes=1 --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
 
       - name: Test Reference
         run: |
