@@ -1124,6 +1124,7 @@ dump_parser_picture_data (VkVideoCodecOperationFlagBitsKHR codec, VkParserPictur
        dump_parser_h264_picture_data (&pic->CodecSpecific.h264);
   else if (codec == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT)
        dump_parser_h265_picture_data (&pic->CodecSpecific.hevc);
+  print_integer ("current_dpb_id", pic->current_dpb_id); 
 
   end_object ();
 }

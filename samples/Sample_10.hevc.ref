@@ -878,6 +878,7 @@ DecodePicture - 1920
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -1354,6 +1355,7 @@ DecodePicture - 544
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -1835,6 +1837,7 @@ DecodePicture - 505
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -2321,6 +2324,7 @@ DecodePicture - 466
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -2812,6 +2816,7 @@ DecodePicture - 350
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -3303,6 +3308,7 @@ DecodePicture - 302
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -3794,6 +3800,7 @@ DecodePicture - 313
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -4285,6 +4292,7 @@ DecodePicture - 254
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -4776,6 +4784,7 @@ DecodePicture - 290
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -5267,5 +5276,6 @@ DecodePicture - 311
             0,
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
