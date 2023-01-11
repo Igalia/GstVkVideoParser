@@ -707,6 +707,7 @@ gst_vk_h265_dec_start_picture (GstH265Decoder * decoder, GstH265Picture * pictur
       //.pBitstreamData, // Ptr to bitstream data for this picture (slice-layer)
       //.pSliceDataOffsets, // nNumSlices entries, contains offset of each slice
       // within the bitstream data buffer
+      .current_dpb_id = 0, //FIXME: This value was not used in NV parser 0.9.7
   };
 
   VkParserHevcPictureData *h265 = &vkpic->data.CodecSpecific.hevc;

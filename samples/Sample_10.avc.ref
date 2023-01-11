@@ -442,6 +442,7 @@ DecodePicture - 1145
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 UnhandledNALU
 AllocPictureBuffer
@@ -763,6 +764,7 @@ DecodePicture - 731
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 DisplayPicture
@@ -1091,6 +1093,7 @@ DecodePicture - 544
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -1423,6 +1426,7 @@ DecodePicture - 515
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -1755,6 +1759,7 @@ DecodePicture - 380
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -2087,6 +2092,7 @@ DecodePicture - 363
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -2419,6 +2425,7 @@ DecodePicture - 339
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -2751,6 +2758,7 @@ DecodePicture - 281
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -3083,6 +3091,7 @@ DecodePicture - 346
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
 UnhandledNALU
@@ -3415,5 +3424,6 @@ DecodePicture - 376
             },
         ],
     },
+    "current_dpb_id": 0,
 },
 DisplayPicture
