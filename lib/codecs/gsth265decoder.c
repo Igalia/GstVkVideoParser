@@ -1790,7 +1790,7 @@ gst_h265_decoder_finish_picture (GstH265Decoder * self,
 
   /* gst_h265_dpb_add() will take care of pic_latency_cnt increment and
    * reference picture marking for this picture */
-  gst_h265_dpb_add (priv->dpb, picture);
+  gst_h265_dpb_add (priv->dpb, gst_h265_picture_ref(picture));
 
   /* NOTE: As per C.5.2.2, bumping by sps_max_dec_pic_buffering_minus1 is
    * applied only for the output and removal of pictures from the DPB before

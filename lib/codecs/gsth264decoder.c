@@ -905,7 +905,7 @@ add_picture_to_dpb (GstH264Decoder * self, GstH264Picture * picture)
 
   if (!gst_h264_dpb_get_interlaced (priv->dpb)) {
     g_assert (priv->last_field == NULL);
-    gst_h264_dpb_add (priv->dpb, picture);
+    gst_h264_dpb_add (priv->dpb, gst_h264_picture_ref(picture));
     return;
   }
 
