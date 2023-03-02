@@ -9,15 +9,19 @@ vkparser_sources = files (
 )
 
 libvideoparsers_dependencies = [
-    gst_dep,
-    gst_video_dep,
-    gst_codecparsers_dep,
+    gstreamer_deps,
     vkcodecparser_dep,
     vulkan_include_dep
 ]
 
-gstvkparser = library('gstvkparser',
+gstvkparser_target_type = 'shared_library'
+if get_option('vkparser_standalone').enabled()
+  gstvkparser_target_type = 'static_library'
+endif
+
+gstvkparser = build_target('gstvkparser',
 	  vkparser_sources,
+    target_type: gstvkparser_target_type,
 	  c_args : plugin_c_args + ['-DGST_USE_UNSTABLE_API'],
     cpp_args : ['-DGST_USE_UNSTABLE_API'],
 	  include_directories: include_directories('../..'),

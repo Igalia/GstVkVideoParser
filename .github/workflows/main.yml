@@ -27,7 +27,7 @@ jobs:
       - name: Set environment variables
         run: |
           echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
-          echo "GST_PLUGIN_PATH=$GITHUB_WORKSPACE/builddir/plugins" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=$GITHUB_WORKSPACE/builddir/lib/plugins" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |
@@ -52,6 +52,106 @@ jobs:
           diff -u builddir/Sample_10.avc.ref samples/Sample_10.avc.ref;
           ./builddir/test/testapp samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
           diff -u builddir/Sample_10.hevc.ref samples/Sample_10.hevc.ref
+
+      - name: Install
+        run: ninja -C builddir install
+
+      - name: Create zip
+        shell: bash
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          popd
+
+      - name: Upload linux release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+
+  ci-linux-x86_64-full:
+    runs-on: ubuntu-22.04
+
+    env:
+      PLATFORM: linux-x86_64
+      TERM: dumb
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: |
+          echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          # Hack to install libunwind-dev (gstreamer dependency)
+          sudo apt remove --assume-yes libunwind-14-dev
+          sudo apt install --assume-yes --no-install-recommends meson valgrind python3-pip
+          sudo pip3 install meson==1.0.1
+
+      - name: Configure
+        run: python3 ./configure_gst_full.py builddir
+
+      - name: Build
+        run: meson compile --verbose -C builddir
+
+      - name: Test
+        run: |
+          meson test --num-processes=1 --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
+
+      - name: Install
+        run: ninja -C builddir install
+
+      - name: Create zip
+        shell: bash
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          popd
+
+      - name: Upload linux release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+
+  ci-linux-x86-full:
+    runs-on: ubuntu-22.04
+
+    env:
+      PLATFORM: linux-x86
+      TERM: dumb
+      CC: cc -m32
+      CXX: c++ -m32
+      PKG_CONFIG_PATH: /usr/lib/i386-linux-gnu/pkgconfig/
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: |
+          echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install gcc-multilib g++-multilib
+          # hack to avoid that zlib x64 gets picked up
+          sudo apt remove --assume-yes zlib1g-dev
+          # Hack to install libunwind-dev (gstreamer dependency)
+          sudo apt remove --assume-yes libunwind-14-dev
+          sudo apt install --assume-yes --no-install-recommends meson valgrind python3-pip
+          sudo pip3 install meson==1.0.1
+
+      - name: Configure
+        run: python3 ./configure_gst_full.py builddir
+
+      - name: Build
+        run: meson compile --verbose -C builddir
 
       - name: Install
         run: ninja -C builddir install
@@ -130,6 +230,112 @@ jobs:
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstcodecparsers-1.0-0.dll builddir/$DESTDIR/bin
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstbase-1.0-0.dll builddir/$DESTDIR/bin
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\gstvideo-1.0-0.dll builddir/$DESTDIR/bin
+
+      - name: Create zip
+        shell: bash
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          popd
+
+      - name: Upload windows release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+
+  ci-win64-full:
+    runs-on: windows-latest
+
+    env:
+      PLATFORM: windows-x64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install dependencies
+        run: |
+          choco install --yes zip
+
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install meson
+        run: python -m pip install meson ninja
+
+      - name: Configure
+        run: python3 ./configure_gst_full.py builddir
+        env:
+          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
+
+      - name: Build
+        run: meson compile --verbose -C builddir
+
+      - name: Install
+        shell: bash
+        run: |
+          ninja -C builddir install
+
+      - name: Create zip
+        shell: bash
+        run: |
+          pushd builddir/
+          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          popd
+
+      - name: Upload windows release
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
+          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+
+  ci-win32-full:
+    runs-on: windows-latest
+
+    env:
+      PLATFORM: windows-x86
+
+    steps:
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: 'x86'
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set environment variables
+        run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install dependencies
+        run: |
+          choco install --yes zip
+
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install meson
+        run: python -m pip install meson ninja
+
+      - name: Configure
+        run: python3 ./configure_gst_full.py builddir
+        env:
+          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
+
+      - name: Build
+        run: meson compile --verbose -C builddir
+
+      - name: Install
+        shell: bash
+        run: |
+          ninja -C builddir install
 
       - name: Create zip
         shell: bash

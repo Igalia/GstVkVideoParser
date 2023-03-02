@@ -1,11 +1,9 @@
 libvideoparsers_dependencies = [
-    gst_dep,
-    gst_codecparsers_dep,
-    gst_video_dep,
+    gstreamer_deps,
 ]
 
 subdir('codecs')
 subdir('plugins')
 subdir('harness')
-subdir('vkvideoparser')
 subdir('demuxeres')
+subdir('vkvideoparser')

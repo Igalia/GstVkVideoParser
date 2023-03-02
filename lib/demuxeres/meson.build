@@ -8,11 +8,14 @@ demuxeres_headers = files(
 
 install_headers(demuxeres_headers)
 
-demuxer_es_deps = [gst_dep, gst_video_dep, gst_audio_dep, gstapp_dep]
+demuxer_es_deps = gstreamer_deps
 
-demuxeres = shared_library(
-  'gstdemuxeres',
+demuxeres_target_type = 'shared_library'
+
+demuxeres = build_target(
+  'demuxeres',
   files('gstdemuxeres.c'),
+  target_type: demuxeres_target_type,
   include_directories: include_directories('.'),
   c_args: ['-DGST_USE_UNSTABLE_API','-DBUILDING_DEMUXERES'],
   install: true,

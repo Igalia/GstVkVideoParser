@@ -67,12 +67,13 @@ VkResult GstVkVideoDecoderParser::Initialize(VkParserInitDecodeParameters* param
     if (!params->pClient)
         return VK_ERROR_INITIALIZATION_FAILED;
 
-#ifndef VKPARSER_EXTERNAL_PLUGIN
-  GST_PLUGIN_STATIC_REGISTER(vkparser);
-#endif
 
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;
+
+#ifndef VKPARSER_EXTERNAL_PLUGIN
+  GST_PLUGIN_STATIC_REGISTER(vkparser);
+#endif
 
     m_parser = new GstVkVideoParser(params->pClient, m_codec, params->bOutOfBandPictureParameters);
     if (!m_parser->Build())
