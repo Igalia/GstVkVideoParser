@@ -1,7 +1,5 @@
 pkgconfig = import('pkgconfig')
 
-
-
 videoparser_sources = files(
   'vkvideodecodeparser.cpp',
   'gstvkvideoparser.cpp',
@@ -15,21 +13,22 @@ install_headers(videoparser_headers)
 
 
 vkvideoparser_dependencies = [
-  gst_dep,
-  gst_video_dep,
+  gstreamer_deps,
   vulkan_include_dep,
   vkcodecparser_dep,
   vkharness_dep,
-  gstvkparser_dep
 ]
 
 vkvideoparser_args = [
   '-DGST_USE_UNSTABLE_API'
 ]
 
-if get_option('vkparser_plugin').enabled()
+if get_option('vkparser_standalone').disabled()
   vkvideoparser_args += ['-DVKPARSER_EXTERNAL_PLUGIN']
+else
+  vkvideoparser_dependencies += gstvkparser_dep
 endif
+
 
 vkvideoparser = shared_library(
   'gstvkvideoparser',
@@ -44,7 +43,6 @@ vkvideoparser = shared_library(
 )
 
 libvkvideoparser_dep = declare_dependency(
-  dependencies: [gst_dep, gst_codecparsers_dep, gst_video_dep],
   sources: videoparser_headers,
   include_directories: include_directories('.'),
   link_with: vkvideoparser,
@@ -52,7 +50,7 @@ libvkvideoparser_dep = declare_dependency(
 
 pkg_name = 'gstvkvideoparser'
 pkgconfig.generate(vkvideoparser,
-  libraries : [gst_dep, gst_codecparsers_dep, gst_video_dep],
+  libraries : gstreamer_deps,
   name : pkg_name,
   description : 'Video parsers for Vulkan video',
 )
