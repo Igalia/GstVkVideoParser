@@ -24,6 +24,12 @@
 GST_DEBUG_CATEGORY_EXTERN (gst_vk_video_parser_debug);
 #define GST_CAT_DEFAULT gst_vk_video_parser_debug
 
+#ifndef VKPARSER_EXTERNAL_PLUGIN
+extern "C" {
+  GST_PLUGIN_STATIC_DECLARE(vkparser);
+};
+#endif
+
 class GstVkVideoDecoderParser : public VulkanVideoDecodeParser {
 public:
     GstVkVideoDecoderParser(VkVideoCodecOperationFlagBitsKHR codec)
@@ -60,6 +66,10 @@ VkResult GstVkVideoDecoderParser::Initialize(VkParserInitDecodeParameters* param
 
     if (!params->pClient)
         return VK_ERROR_INITIALIZATION_FAILED;
+
+#ifndef VKPARSER_EXTERNAL_PLUGIN
+  GST_PLUGIN_STATIC_REGISTER(vkparser);
+#endif
 
     if (!gst_init_check(NULL, NULL, NULL))
         return VK_ERROR_INITIALIZATION_FAILED;

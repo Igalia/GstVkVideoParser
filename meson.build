@@ -44,5 +44,4 @@ gmodule_dep = dependency('gmodule-2.0')
 
 subdir('include')
 subdir('lib')
-subdir('plugins')
 subdir('test')
