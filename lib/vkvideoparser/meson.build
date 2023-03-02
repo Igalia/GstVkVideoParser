@@ -13,16 +13,34 @@ videoparser_headers = files(
 
 install_headers(videoparser_headers)
 
+
+vkvideoparser_dependencies = [
+  gst_dep,
+  gst_video_dep,
+  vulkan_include_dep,
+  vkcodecparser_dep,
+  vkharness_dep,
+  gstvkparser_dep
+]
+
+vkvideoparser_args = [
+  '-DGST_USE_UNSTABLE_API'
+]
+
+if get_option('vkparser_plugin').enabled()
+  vkvideoparser_args += ['-DVKPARSER_EXTERNAL_PLUGIN']
+endif
+
 vkvideoparser = shared_library(
   'gstvkvideoparser',
   videoparser_sources,
   include_directories: include_directories('.'),
-  cpp_args: '-DGST_USE_UNSTABLE_API',
-  c_args: '-DGST_USE_UNSTABLE_API',
+  cpp_args: vkvideoparser_args,
+  c_args: vkvideoparser_args,
   install: true,
   vs_module_defs: 'gstvkvideoparser.def',
   override_options: _override_options,
-  dependencies: [gst_dep, gst_video_dep, vulkan_include_dep, vkcodecparser_dep, vkharness_dep],
+  dependencies: vkvideoparser_dependencies,
 )
 
 libvkvideoparser_dep = declare_dependency(

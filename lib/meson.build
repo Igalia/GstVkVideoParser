@@ -5,6 +5,7 @@ libvideoparsers_dependencies = [
 ]
 
 subdir('codecs')
+subdir('plugins')
 subdir('harness')
 subdir('vkvideoparser')
 subdir('demuxeres')

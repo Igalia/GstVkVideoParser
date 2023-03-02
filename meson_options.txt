@@ -1,0 +1,3 @@
+# Subproject options
+option('vkparser_plugin', type : 'feature', value : 'disabled')
+
