@@ -504,12 +504,19 @@ handle_bus_message (GstBus * bus, GstMessage * message, GstDemuxerES * demuxer)
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR:
     {
-      set_demuxer_state (demuxer, DEMUXER_ES_STATE_ERROR);;
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_ERROR);
       break;
     }
     case GST_MESSAGE_EOS:
     {
-      set_demuxer_state (demuxer, DEMUXER_ES_STATE_EOS);;
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_EOS);
+      break;
+    }
+    // parsebin does not trigger 'no-more-pads' with elementary stream, rely on stream-collection event instead
+    // See https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/2119
+    case GST_MESSAGE_STREAM_COLLECTION:
+    {
+      set_demuxer_state (demuxer, DEMUXER_ES_STATE_READY);
       break;
     }
     case GST_MESSAGE_ELEMENT:
