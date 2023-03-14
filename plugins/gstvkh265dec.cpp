@@ -61,9 +61,6 @@ struct _GstVkH265Dec
 
   gint max_dpb_size;
 
-  GstH265SPS last_sps;
-  GstH265PPS last_pps;
-  GstH265VPS last_vps;
   VkH265Picture vkp;
   GArray *refs;
 
@@ -849,232 +846,6 @@ gst_vk_h265_dec_unhandled_nalu (GstH265Decoder * decoder, const guint8 * data,
     self->client->UnhandledNALU (data, size);
 }
 
-static bool
-sps_cmp (GstH265SPS * a, GstH265SPS * b)
-{
-  int i;
-#define CMP_FIELD(x) G_STMT_START { if (a->x != b->x) return false; } G_STMT_END
-  CMP_FIELD (id);
-
-  //CMP_FIELD (vps_id);
-  //GstH265VPS *vps;
-
-  CMP_FIELD (max_sub_layers_minus1);
-  CMP_FIELD (temporal_id_nesting_flag);
-
-  //GstH265ProfileTierLevel profile_tier_level;
-
-  CMP_FIELD (chroma_format_idc);
-  CMP_FIELD (separate_colour_plane_flag);
-  CMP_FIELD (pic_width_in_luma_samples);
-  CMP_FIELD (pic_height_in_luma_samples);
-
-  CMP_FIELD (conformance_window_flag);
-  /* if conformance_window_flag */
-  CMP_FIELD (conf_win_left_offset);
-  CMP_FIELD (conf_win_right_offset);
-  CMP_FIELD (conf_win_top_offset);
-  CMP_FIELD (conf_win_bottom_offset);
-
-  CMP_FIELD (bit_depth_luma_minus8);
-  CMP_FIELD (bit_depth_chroma_minus8);
-  CMP_FIELD (log2_max_pic_order_cnt_lsb_minus4);
-
-  CMP_FIELD (sub_layer_ordering_info_present_flag);
-  for (i = 0; i < GST_H265_MAX_SUB_LAYERS; i++) {
-    CMP_FIELD (max_dec_pic_buffering_minus1[i]);
-    CMP_FIELD (max_num_reorder_pics[i]);
-    CMP_FIELD (max_latency_increase_plus1[i]);
-  }
-  CMP_FIELD (log2_min_luma_coding_block_size_minus3);
-  CMP_FIELD (log2_diff_max_min_luma_coding_block_size);
-  CMP_FIELD (log2_min_transform_block_size_minus2);
-  CMP_FIELD (log2_diff_max_min_transform_block_size);
-  CMP_FIELD (max_transform_hierarchy_depth_inter);
-  CMP_FIELD (max_transform_hierarchy_depth_intra);
-
-  CMP_FIELD (scaling_list_enabled_flag);
-  /* if scaling_list_enabled_flag */
-  CMP_FIELD (scaling_list_data_present_flag);
-
-  // GstH265ScalingList scaling_list;
-
-  CMP_FIELD (amp_enabled_flag);
-  CMP_FIELD (sample_adaptive_offset_enabled_flag);
-  CMP_FIELD (pcm_enabled_flag);
-  /* if pcm_enabled_flag */
-  CMP_FIELD (pcm_sample_bit_depth_luma_minus1);
-  CMP_FIELD (pcm_sample_bit_depth_chroma_minus1);
-  CMP_FIELD (log2_min_pcm_luma_coding_block_size_minus3);
-  CMP_FIELD (log2_diff_max_min_pcm_luma_coding_block_size);
-  CMP_FIELD (pcm_loop_filter_disabled_flag);
-
-  CMP_FIELD (num_short_term_ref_pic_sets);
-  // GstH265ShortTermRefPicSet short_term_ref_pic_set[65];
-
-  CMP_FIELD (long_term_ref_pics_present_flag);
-  /* if long_term_ref_pics_present_flag */
-  CMP_FIELD (num_long_term_ref_pics_sps);
-  // CMP_FIELD (lt_ref_pic_poc_lsb_sps[32]);
-  // CMP_FIELD (used_by_curr_pic_lt_sps_flag[32]);
-
-  CMP_FIELD (temporal_mvp_enabled_flag);
-  CMP_FIELD (strong_intra_smoothing_enabled_flag);
-  CMP_FIELD (vui_parameters_present_flag);
-
-  /* if vui_parameters_present_flat */
-  // GstH265VUIParams vui_params;
-
-  CMP_FIELD (sps_extension_flag);
-
-  /* if sps_extension_present_flag */
-  CMP_FIELD (sps_range_extension_flag);
-  CMP_FIELD (sps_multilayer_extension_flag);
-  CMP_FIELD (sps_3d_extension_flag);
-  CMP_FIELD (sps_scc_extension_flag);
-  CMP_FIELD (sps_extension_4bits);
-
-  /* if sps_range_extension_flag */
-  // GstH265SPSExtensionParams sps_extension_params;
-  /* if sps_scc_extension_flag */
-  // GstH265SPSSccExtensionParams sps_scc_extension_params;
-
-  /* calculated values */
-  CMP_FIELD (chroma_array_type);
-  CMP_FIELD (width);
-  CMP_FIELD (height);
-  CMP_FIELD (crop_rect_width);
-  CMP_FIELD (crop_rect_height);
-  CMP_FIELD (crop_rect_x);
-  CMP_FIELD (crop_rect_y);
-  CMP_FIELD (fps_num);
-  CMP_FIELD (fps_den);
-  CMP_FIELD (valid);
-
-  return true;
-#undef CMP_FIELD
-}
-
-static bool
-pps_cmp (GstH265PPS * a, GstH265PPS * b)
-{
-#define CMP_FIELD(x)  G_STMT_START { if (a->x != b->x) return false;  }  G_STMT_END
-  CMP_FIELD (id);
-
-  //CMP_FIELD (sps_id);
-  // GstH265SPS *sps;
-
-  CMP_FIELD (dependent_slice_segments_enabled_flag);
-  CMP_FIELD (output_flag_present_flag);
-  CMP_FIELD (num_extra_slice_header_bits);
-  CMP_FIELD (sign_data_hiding_enabled_flag);
-  CMP_FIELD (cabac_init_present_flag);
-  CMP_FIELD (num_ref_idx_l0_default_active_minus1);
-  CMP_FIELD (num_ref_idx_l1_default_active_minus1);
-  CMP_FIELD (init_qp_minus26);
-  CMP_FIELD (constrained_intra_pred_flag);
-  CMP_FIELD (transform_skip_enabled_flag);
-  CMP_FIELD (cu_qp_delta_enabled_flag);
-  /*if cu_qp_delta_enabled_flag */
-  CMP_FIELD (diff_cu_qp_delta_depth);
-
-  CMP_FIELD (cb_qp_offset);
-  CMP_FIELD (cr_qp_offset);
-  CMP_FIELD (slice_chroma_qp_offsets_present_flag);
-  CMP_FIELD (weighted_pred_flag);
-  CMP_FIELD (weighted_bipred_flag);
-  CMP_FIELD (transquant_bypass_enabled_flag);
-  CMP_FIELD (tiles_enabled_flag);
-  CMP_FIELD (entropy_coding_sync_enabled_flag);
-
-  CMP_FIELD (num_tile_columns_minus1);
-  CMP_FIELD (num_tile_rows_minus1);
-  CMP_FIELD (uniform_spacing_flag);
-  // CMP_FIELD (column_width_minus1[20]);
-  // CMP_FIELD (row_height_minus1[22]);
-  CMP_FIELD (loop_filter_across_tiles_enabled_flag);
-
-  CMP_FIELD (loop_filter_across_slices_enabled_flag);
-  CMP_FIELD (deblocking_filter_control_present_flag);
-  CMP_FIELD (deblocking_filter_override_enabled_flag);
-  CMP_FIELD (deblocking_filter_disabled_flag);
-  CMP_FIELD (beta_offset_div2);
-  CMP_FIELD (tc_offset_div2);
-
-  CMP_FIELD (scaling_list_data_present_flag);
-
-  // GstH265ScalingList scaling_list;
-
-  CMP_FIELD (lists_modification_present_flag);
-  CMP_FIELD (log2_parallel_merge_level_minus2);
-  CMP_FIELD (slice_segment_header_extension_present_flag);
-
-  CMP_FIELD (pps_extension_flag);
-
-  /* if pps_extension_flag*/
-  CMP_FIELD (pps_range_extension_flag);
-  CMP_FIELD (pps_multilayer_extension_flag);
-  CMP_FIELD (pps_3d_extension_flag);
-  CMP_FIELD (pps_scc_extension_flag);
-  CMP_FIELD (pps_extension_4bits);
-
-  /* if pps_range_extension_flag*/
-  // GstH265PPSExtensionParams pps_extension_params;
-  /* if pps_scc_extension_flag*/
-  // GstH265PPSSccExtensionParams pps_scc_extension_params;
-
-  /* calculated values */
-  CMP_FIELD (PicWidthInCtbsY);
-  CMP_FIELD (PicHeightInCtbsY);
-  CMP_FIELD (valid);
-
-  return true;
-#undef CMP_FIELD
-}
-
-static bool
-vps_cmp (GstH265VPS * a, GstH265VPS * b)
-{
-#define CMP_FIELD(x)  G_STMT_START { if (a->x != b->x) return false;  }  G_STMT_END
-  CMP_FIELD (id);
-  CMP_FIELD (base_layer_internal_flag);
-  CMP_FIELD (base_layer_available_flag);
-
-  CMP_FIELD (max_layers_minus1);
-  CMP_FIELD (max_sub_layers_minus1);
-  CMP_FIELD (temporal_id_nesting_flag);
-
-  // GstH265ProfileTierLevel profile_tier_level;
-
-  CMP_FIELD (sub_layer_ordering_info_present_flag);
-  // CMP_FIELD (max_dec_pic_buffering_minus1[GST_H265_MAX_SUB_LAYERS]);
-  // CMP_FIELD (max_num_reorder_pics[GST_H265_MAX_SUB_LAYERS]);
-  // CMP_FIELD (max_latency_increase_plus1[GST_H265_MAX_SUB_LAYERS]);
-
-  CMP_FIELD (max_layer_id);
-  CMP_FIELD (num_layer_sets_minus1);
-
-  CMP_FIELD (timing_info_present_flag);
-  CMP_FIELD (num_units_in_tick);
-  CMP_FIELD (time_scale);
-  CMP_FIELD (poc_proportional_to_timing_flag);
-  CMP_FIELD (num_ticks_poc_diff_one_minus1);
-
-  CMP_FIELD (num_hrd_parameters);
-
-  /* FIXME: following HRD related info should be an array */
-  CMP_FIELD (hrd_layer_set_idx);
-  CMP_FIELD (cprms_present_flag);
-  // GstH265HRDParams hrd_params;
-
-  CMP_FIELD (vps_extension);
-
-  CMP_FIELD (valid);
-
-  return true;
-#undef CMP_FIELD
-}
-
 static void
 gst_vk_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
     GstH265NalUnitType type, const gpointer nalu)
@@ -1085,9 +856,6 @@ gst_vk_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
   switch (type) {
     case GST_H265_NAL_SPS:{
       GstH265SPS *sps = static_cast < GstH265SPS * >(nalu);
-      if (sps_cmp (&self->last_sps, sps))
-        return;
-      self->last_sps = *sps;
       fill_sps (sps, &self->vkp);
       params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_SPS,
@@ -1103,9 +871,6 @@ gst_vk_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
     }
     case GST_H265_NAL_PPS:{
       GstH265PPS *pps = static_cast < GstH265PPS * >(nalu);
-      if (pps_cmp (&self->last_pps, pps))
-        return;
-      self->last_pps = *pps;
       fill_pps (pps, &self->vkp);
       params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_PPS,
@@ -1121,10 +886,6 @@ gst_vk_h265_dec_update_picture_parameters (GstH265Decoder * decoder,
     }
     case GST_H265_NAL_VPS:{
       GstH265VPS *vps = static_cast < GstH265VPS * >(nalu);
-      if (vps_cmp (&self->last_vps, vps))
-         return;
-      self->last_vps = *vps;
-
       fill_vps (vps, &self->vkp);
       params = VkPictureParameters {
         .updateType = VK_PICTURE_PARAMETERS_UPDATE_H265_VPS,
