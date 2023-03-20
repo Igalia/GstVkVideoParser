@@ -30,7 +30,7 @@ print_video_info (GstDemuxerEStream * stream)
   INFO ("\twidth: %d", stream->data.video.info.width);
   INFO ("\theight: %d", stream->data.video.info.height);
   INFO ("\tbitrate: %d", stream->data.video.bitrate);
-  INFO ("\tfps: %d/%d", stream->data.video.info.fps_d,
+  INFO ("\tfps: %d/%d", stream->data.video.info.fps_n,
       stream->data.video.info.fps_d);
   INFO ("\tpar: %d/%d", stream->data.video.info.par_n,
       stream->data.video.info.par_d);
