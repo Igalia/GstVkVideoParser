@@ -136,6 +136,12 @@ GST_DEMUXER_ES_API
 GstDemuxerEStream * gst_demuxer_es_find_best_stream (GstDemuxerES * demuxer, GstDemuxerEStreamType type);
 
 GST_DEMUXER_ES_API
+const gchar* gst_demuxer_es_get_stream_type_name(GstDemuxerEStreamType type_id);
+
+GST_DEMUXER_ES_API
+const gchar* gst_demuxer_es_get_codec_name(GstDemuxerEStreamType type_id, GstDemuxerESVideoCodec codec_id);
+
+GST_DEMUXER_ES_API
 void gst_demuxer_es_teardown (GstDemuxerES * demuxer);
 
 #ifdef __cplusplus
