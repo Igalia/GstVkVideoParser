@@ -728,3 +728,46 @@ gst_demuxer_es_teardown (GstDemuxerES * demuxer)
   demuxer->priv = NULL;
   g_free (demuxer);
 }
+
+
+const gchar*
+gst_demuxer_es_get_stream_type_name(GstDemuxerEStreamType type_id)
+{
+  switch(type_id) {
+    case DEMUXER_ES_STREAM_TYPE_VIDEO:
+      return "Video";
+    case DEMUXER_ES_STREAM_TYPE_AUDIO:
+      return "Audio";
+    case DEMUXER_ES_STREAM_TYPE_TEXT:
+      return "Text";
+    default:
+        break;
+  }
+  return "Unknown";
+}
+
+const gchar*
+gst_demuxer_es_get_codec_name(GstDemuxerEStreamType type_id, GstDemuxerESVideoCodec codec_id)
+{
+  if (type_id == DEMUXER_ES_STREAM_TYPE_VIDEO) {
+    switch(codec_id) {
+      case DEMUXER_ES_VIDEO_CODEC_AV1:
+        return "AV1";
+      case DEMUXER_ES_VIDEO_CODEC_H264:
+        return "H264";
+      case DEMUXER_ES_VIDEO_CODEC_H265:
+        return "H265";
+      default:
+        break;
+  }
+
+  } else if (type_id == DEMUXER_ES_STREAM_TYPE_AUDIO) {
+    switch(codec_id) {
+      case DEMUXER_ES_AUDIO_CODEC_AAC:
+        return "AAC";
+      default:
+        break;
+    }
+  }
+  return "Unknown";
+}

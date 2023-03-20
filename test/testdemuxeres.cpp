@@ -24,7 +24,7 @@ void
 print_video_info (GstDemuxerEStream * stream)
 {
   INFO ("video info: ");
-  INFO ("\tcodec: %d", stream->data.video.vcodec);
+  INFO ("\tcodec: %s", gst_demuxer_es_get_codec_name (stream->type, stream->data.video.vcodec));
   INFO ("\tprofile: %s", stream->data.video.profile);
   INFO ("\tlevel: %s", stream->data.video.level);
   INFO ("\twidth: %d", stream->data.video.info.width);
@@ -64,9 +64,9 @@ process_file (gchar * filename)
           gst_demuxer_es_read_packet (demuxer,
               &pkt)) <= DEMUXER_ES_RESULT_NO_PACKET) {
     if (result <= DEMUXER_ES_RESULT_LAST_PACKET) {
-      INFO ("A %s packet of type %d stream_id %d with size %lu.",
+      INFO ("A %s packet of type %s stream_id %d with size %lu.",
       (result == DEMUXER_ES_RESULT_LAST_PACKET)? "last":"new",
-          pkt->stream_type, pkt->stream_id, pkt->data_size);
+          gst_demuxer_es_get_stream_type_name(pkt->stream_type), pkt->stream_id, pkt->data_size);
       count++;
       gst_demuxer_es_clear_packet (pkt);
       if(result == DEMUXER_ES_RESULT_LAST_PACKET)
