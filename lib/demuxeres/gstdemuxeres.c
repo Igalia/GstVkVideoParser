@@ -253,6 +253,8 @@ gst_parse_stream_get_vcodec_from_caps (GstCaps * caps)
     ret = DEMUXER_ES_VIDEO_CODEC_H265;
   } else if (!strcmp (name, "video/x-av1")) {
     ret = DEMUXER_ES_VIDEO_CODEC_AV1;
+  } else if (!strcmp (name, "video/x-vp9")) {
+    ret = DEMUXER_ES_VIDEO_CODEC_VP9;
   }
 
 beach:
@@ -757,6 +759,8 @@ gst_demuxer_es_get_codec_name(GstDemuxerEStreamType type_id, GstDemuxerESVideoCo
         return "H264";
       case DEMUXER_ES_VIDEO_CODEC_H265:
         return "H265";
+      case DEMUXER_ES_VIDEO_CODEC_VP9:
+        return "VP9";
       default:
         break;
   }
