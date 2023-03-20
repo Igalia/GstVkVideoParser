@@ -60,16 +60,16 @@ typedef enum _GstDemuxerEStreamType
   DEMUXER_ES_STREAM_TYPES,
 } GstDemuxerEStreamType;
 
-typedef enum GstDemuxerVideoCodec {
+typedef enum GstDemuxerESVideoCodec {
   DEMUXER_ES_VIDEO_CODEC_UNKNOWN = 0,
   DEMUXER_ES_VIDEO_CODEC_H264,
   DEMUXER_ES_VIDEO_CODEC_H265,
-} GstDemuxerVideoCodec;
+} GstDemuxerESVideoCodec;
 
-typedef enum GstDemuxerAudioCodec {
+typedef enum GstDemuxerESAudioCodec {
   DEMUXER_ES_AUDIO_CODEC_UNKNOWN,
   DEMUXER_ES_AUDIO_CODEC_AAC,
-} GstDemuxerAudioCodec;
+} GstDemuxerESAudioCodec;
 
 typedef enum _GstDemuxerESResult
 {
@@ -96,22 +96,22 @@ typedef struct _GstDemuxerVideoInfo {
   gint bitrate;
   gchar* profile;
   gchar* level;
-  GstDemuxerVideoCodec vcodec;
+  GstDemuxerESVideoCodec vcodec;
   GstVideoInfo info;
-} GstDemuxerVideoInfo;
+} GstDemuxerESVideoInfo;
 
 typedef struct _GstDemuxerAudioInfo {
   GstAudioInfo info;
   gint bitrate;
-  GstDemuxerAudioCodec acodec;
-} GstDemuxerAudioInfo;
+  GstDemuxerESAudioCodec acodec;
+} GstDemuxerESAudioInfo;
 
 
-typedef union _GstDemuxerInfoData
+typedef union _GstDemuxerESInfoData
 {
-  GstDemuxerVideoInfo video;
-  GstDemuxerAudioInfo audio;
-} GstDemuxerData;
+  GstDemuxerESVideoInfo video;
+  GstDemuxerESAudioInfo audio;
+} GstDemuxerESInfoData;
 
 typedef struct
 {
@@ -119,7 +119,7 @@ typedef struct
   GstDemuxerEStreamType type;
   guint id;
   gchar *stream_id;
-  GstDemuxerData data;
+  GstDemuxerESInfoData data;
 } GstDemuxerEStream;
 
 GST_DEMUXER_ES_API

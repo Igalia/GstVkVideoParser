@@ -229,10 +229,10 @@ gst_parse_stream_get_type_from_pad (GstPad * pad)
   return type;
 }
 
-static GstDemuxerVideoCodec
+static GstDemuxerESVideoCodec
 gst_parse_stream_get_vcodec_from_caps (GstCaps * caps)
 {
-  GstDemuxerVideoCodec ret = DEMUXER_ES_VIDEO_CODEC_UNKNOWN;
+  GstDemuxerESVideoCodec ret = DEMUXER_ES_VIDEO_CODEC_UNKNOWN;
   GstStructure *s;
   const gchar *name;
 
@@ -257,10 +257,10 @@ beach:
   return ret;
 }
 
-static GstDemuxerAudioCodec
+static GstDemuxerESAudioCodec
 gst_parse_stream_get_acodec_from_caps (GstCaps * caps)
 {
-  GstDemuxerAudioCodec ret = DEMUXER_ES_AUDIO_CODEC_UNKNOWN;
+  GstDemuxerESAudioCodec ret = DEMUXER_ES_AUDIO_CODEC_UNKNOWN;
   GstStructure *s;
   const gchar *name;
 
@@ -434,7 +434,7 @@ autoplug_query_caps (GstElement * uridecodebin, GstPad * pad,
     GstStructure *s = gst_caps_get_structure (caps, 0);
     if (!s)
       goto done;
-    GstDemuxerVideoCodec codec_id =
+    GstDemuxerESVideoCodec codec_id =
         gst_parse_stream_get_vcodec_from_caps (caps);
     switch (codec_id) {
       case DEMUXER_ES_VIDEO_CODEC_H264:
