@@ -64,6 +64,7 @@ typedef enum GstDemuxerESVideoCodec {
   DEMUXER_ES_VIDEO_CODEC_UNKNOWN = 0,
   DEMUXER_ES_VIDEO_CODEC_H264,
   DEMUXER_ES_VIDEO_CODEC_H265,
+  DEMUXER_ES_VIDEO_CODEC_AV1,
 } GstDemuxerESVideoCodec;
 
 typedef enum GstDemuxerESAudioCodec {

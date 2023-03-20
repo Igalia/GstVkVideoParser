@@ -251,6 +251,8 @@ gst_parse_stream_get_vcodec_from_caps (GstCaps * caps)
     ret = DEMUXER_ES_VIDEO_CODEC_H264;
   } else if (!strcmp (name, "video/x-h265")) {
     ret = DEMUXER_ES_VIDEO_CODEC_H265;
+  } else if (!strcmp (name, "video/x-av1")) {
+    ret = DEMUXER_ES_VIDEO_CODEC_AV1;
   }
 
 beach:
