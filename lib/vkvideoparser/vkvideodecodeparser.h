@@ -24,6 +24,13 @@
 
 typedef void (*nvParserLogFuncType)(const char* format, ...);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool CreateVulkanVideoDecodeParser(VulkanVideoDecodeParser** ppobj, VkVideoCodecOperationFlagBitsKHR eCompression,
                                    const VkExtensionProperties* pStdExtensionVersion,
                                    nvParserLogFuncType pParserLogFunc, int logLevel);
+#ifdef __cplusplus
+} // extern "C"
+#endif
