@@ -13,11 +13,13 @@ env:
   REPO_NAME: gstvkvideoparser
 
 jobs:
-  ci-linux-x86_64:
+  ci-linux:
+    strategy:
+      matrix:
+        platform: [linux-x86_64, linux-x86_64-full, linux-x86-full]
     runs-on: ubuntu-22.04
 
     env:
-      PLATFORM: linux-x86_64
       TERM: dumb
 
     steps:
@@ -29,28 +31,56 @@ jobs:
           echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=$GITHUB_WORKSPACE/builddir/lib/plugins" >> $GITHUB_ENV
 
+      - name: Set i386 environment variables
+        if: matrix.platform == 'linux-x86-full'
+        run: |
+            echo "CC=cc -m32" >> $GITHUB_ENV
+            echo "CXX=c++ -m32" >> $GITHUB_ENV
+            echo "PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig/" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: |
           sudo apt update
+          sudo apt install --assume-yes --no-install-recommends valgrind python3-pip ninja-build
+          sudo pip3 install meson==1.0.1
+
+      - name: Install i386 dependencies
+        if: matrix.platform == 'linux-x86-full'
+        run: |
+          sudo apt install gcc-multilib g++-multilib
+          # hack to avoid that zlib x64 gets picked up
+          sudo apt remove --assume-yes zlib1g-dev
+
+      - name: Install GStreamer dev packages
+        if: matrix.platform == 'linux-x86_64'
+        run: |
           # Hack to install libunwind-dev (gstreamer dependency)
           sudo apt remove --assume-yes libunwind-14-dev
-          sudo apt install --assume-yes --no-install-recommends meson libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad valgrind
+          sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad
 
       - name: Configure
-        run: meson setup builddir
+        run: |
+          # Configure using python script only in full configuration
+          if $(echo "${{ matrix.platform }}" | grep -q "full"); then
+            python3 ./configure_gst_full.py builddir
+          else
+            meson setup builddir
+          fi
 
       - name: Build
         run: meson compile --verbose -C builddir
-
+      # The test can not be perfomed because of nvidia test case. It needs addtional work on valgrind support for 32 bits application
       - name: Test
+        if: matrix.platform == 'linux-x86_64'
         run: |
           meson test --num-processes=1 --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
 
       - name: Test Reference
+        if: matrix.platform == 'linux-x86_64'
         run: |
-          ./builddir/test/testapp samples/Sample_10.avc > builddir/Sample_10.avc.ref;
+          ./builddir/test/testesapp samples/Sample_10.avc > builddir/Sample_10.avc.ref;
           diff -u builddir/Sample_10.avc.ref samples/Sample_10.avc.ref;
-          ./builddir/test/testapp samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
+          ./builddir/test/testesapp -c h265 samples/Sample_10.hevc  > builddir/Sample_10.hevc.ref;
           diff -u builddir/Sample_10.hevc.ref samples/Sample_10.hevc.ref
 
       - name: Install
@@ -60,140 +90,50 @@ jobs:
         shell: bash
         run: |
           pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          zip -r ../$REPO_NAME-release-${{ matrix.platform }}.zip $REPO_NAME-release
           popd
 
       - name: Upload linux release
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+          name: ${{ env.REPO_NAME }}-release-${{ matrix.platform }}
+          path: ${{ env.REPO_NAME }}-release-${{ matrix.platform }}.zip
 
-  ci-linux-x86_64-full:
-    runs-on: ubuntu-22.04
-
-    env:
-      PLATFORM: linux-x86_64
-      TERM: dumb
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set environment variables
-        run: |
-          echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          # Hack to install libunwind-dev (gstreamer dependency)
-          sudo apt remove --assume-yes libunwind-14-dev
-          sudo apt install --assume-yes --no-install-recommends meson valgrind python3-pip
-          sudo pip3 install meson==1.0.1
-
-      - name: Configure
-        run: python3 ./configure_gst_full.py builddir
-
-      - name: Build
-        run: meson compile --verbose -C builddir
-
-      - name: Test
-        run: |
-          meson test --num-processes=1 --wrap=${GITHUB_WORKSPACE}/valgrind/valgrind.sh --verbose --timeout-multiplier=2 -C builddir
-
-      - name: Install
-        run: ninja -C builddir install
-
-      - name: Create zip
-        shell: bash
-        run: |
-          pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
-          popd
-
-      - name: Upload linux release
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
-
-  ci-linux-x86-full:
-    runs-on: ubuntu-22.04
-
-    env:
-      PLATFORM: linux-x86
-      TERM: dumb
-      CC: cc -m32
-      CXX: c++ -m32
-      PKG_CONFIG_PATH: /usr/lib/i386-linux-gnu/pkgconfig/
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set environment variables
-        run: |
-          echo "DESTDIR=$REPO_NAME-release" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install gcc-multilib g++-multilib
-          # hack to avoid that zlib x64 gets picked up
-          sudo apt remove --assume-yes zlib1g-dev
-          # Hack to install libunwind-dev (gstreamer dependency)
-          sudo apt remove --assume-yes libunwind-14-dev
-          sudo apt install --assume-yes --no-install-recommends meson valgrind python3-pip
-          sudo pip3 install meson==1.0.1
-
-      - name: Configure
-        run: python3 ./configure_gst_full.py builddir
-
-      - name: Build
-        run: meson compile --verbose -C builddir
-
-      - name: Install
-        run: ninja -C builddir install
-
-      - name: Create zip
-        shell: bash
-        run: |
-          pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
-          popd
-
-      - name: Upload linux release
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
-
-  ci-win64:
+  ci-windows:
     runs-on: windows-latest
-
-    env:
-      PLATFORM: windows-x64
-
+    strategy:
+      matrix:
+        platform: [windows-x64, windows-x64-full, windows-x86-full]
     steps:
+      - name: Set up X86 MSVC environment
+        if: matrix.platform == 'windows-x86-full'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: 'x86'
+
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set environment variables
         run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Install common dependencies
+        run: |
+          choco install --yes zip
+      
       - name: Install pkgconfiglite
+        if: matrix.platform == 'windows-x64'
         uses: nick-fields/retry@v2
         with:
           timeout_seconds: 120
           max_attempts: 3
           retry_on: error
           command: choco install --yes --allow-empty-checksums pkgconfiglite
-
-      - name: Install dependencies
+      
+      - name: Install gstreamer dependencies
+        if: matrix.platform == 'windows-x64'
         run: |
           choco install --yes gstreamer gstreamer-devel
-          choco install --yes zip
 
       - name: Install python
         uses: actions/setup-python@v4
@@ -201,10 +141,19 @@ jobs:
           python-version: '3.10'
 
       - name: Install meson
-        run: python -m pip install meson ninja
+        run: |
+          python -m pip install meson==1.0.1
+          python -m pip install ninja
 
       - name: Configure
-        run: meson setup --vsenv builddir
+        shell: powershell
+        run: |
+          # Configure using python script only in full configuration
+          if ("${{ matrix.platform }}" -match "-full") {
+              python3 ./configure_gst_full.py builddir
+          } else {
+              meson setup --vsenv builddir
+          }
         env:
           PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
 
@@ -215,10 +164,15 @@ jobs:
       #- name: Test
       #  run: meson test --verbose -C builddir
 
-      - name: Install
+      - name: Install meson build
         shell: bash
         run: |
           ninja -C builddir install
+
+      - name: Install GStreamer dependencies (only windows-x64)
+        if: matrix.platform == 'windows-x64'
+        shell: bash
+        run: |
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\ffi-7.dll builddir/$DESTDIR/bin
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\orc-0.4-0.dll builddir/$DESTDIR/bin
           cp C:\\gstreamer\\1.0\\msvc_x86_64\\bin\\intl-8.dll builddir/$DESTDIR/bin
@@ -235,117 +189,12 @@ jobs:
         shell: bash
         run: |
           pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
+          zip -r ../$REPO_NAME-release-${{ matrix.platform }}.zip $REPO_NAME-release
           popd
 
       - name: Upload windows release
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
+          name: ${{ env.REPO_NAME }}-release-${{ matrix.platform }}
+          path: ${{ env.REPO_NAME }}-release-${{ matrix.platform }}.zip
 
-  ci-win64-full:
-    runs-on: windows-latest
-
-    env:
-      PLATFORM: windows-x64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set environment variables
-        run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Install dependencies
-        run: |
-          choco install --yes zip
-
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install meson
-        run: python -m pip install meson ninja
-
-      - name: Configure
-        run: python3 ./configure_gst_full.py builddir
-        env:
-          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
-
-      - name: Build
-        run: meson compile --verbose -C builddir
-
-      - name: Install
-        shell: bash
-        run: |
-          ninja -C builddir install
-
-      - name: Create zip
-        shell: bash
-        run: |
-          pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
-          popd
-
-      - name: Upload windows release
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
-
-  ci-win32-full:
-    runs-on: windows-latest
-
-    env:
-      PLATFORM: windows-x86
-
-    steps:
-      - name: Set up MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: 'x86'
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set environment variables
-        run: echo "DESTDIR=$Env:REPO_NAME-release" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Install dependencies
-        run: |
-          choco install --yes zip
-
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install meson
-        run: python -m pip install meson ninja
-
-      - name: Configure
-        run: python3 ./configure_gst_full.py builddir
-        env:
-          PKG_CONFIG_PATH: C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig
-
-      - name: Build
-        run: meson compile --verbose -C builddir
-
-      - name: Install
-        shell: bash
-        run: |
-          ninja -C builddir install
-
-      - name: Create zip
-        shell: bash
-        run: |
-          pushd builddir/
-          zip -r ../$REPO_NAME-release-$PLATFORM.zip $REPO_NAME-release
-          popd
-
-      - name: Upload windows release
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}
-          path: ${{ env.REPO_NAME }}-release-${{ env.PLATFORM }}.zip
