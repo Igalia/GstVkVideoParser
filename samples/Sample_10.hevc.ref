@@ -260,7 +260,6 @@ BeginSequence
     "cbSideData": 0,
     "codecProfile": 1,
 },
-UnhandledNALU
 UpdatePictureParameters
 "VkPictureParameters": {
     "StdVideoH265VideoParameterSet": {
@@ -1113,7 +1112,6 @@ DecodePicture - 1920
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 544
 "VkParserPictureData": {
@@ -1590,7 +1588,6 @@ DecodePicture - 544
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 505
 "VkParserPictureData": {
@@ -2072,7 +2069,6 @@ DecodePicture - 505
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 466
 "VkParserPictureData": {
@@ -2559,7 +2555,6 @@ DecodePicture - 466
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 350
 "VkParserPictureData": {
@@ -3051,7 +3046,6 @@ DecodePicture - 350
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 302
 "VkParserPictureData": {
@@ -3543,7 +3537,6 @@ DecodePicture - 302
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 313
 "VkParserPictureData": {
@@ -4035,7 +4028,6 @@ DecodePicture - 313
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 254
 "VkParserPictureData": {
@@ -4527,7 +4519,6 @@ DecodePicture - 254
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 290
 "VkParserPictureData": {
@@ -5019,7 +5010,6 @@ DecodePicture - 290
     "current_dpb_id": 0,
 },
 DisplayPicture
-UnhandledNALU
 AllocPictureBuffer
 DecodePicture - 311
 "VkParserPictureData": {
