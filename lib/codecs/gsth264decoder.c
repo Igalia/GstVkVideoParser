@@ -1358,6 +1358,8 @@ gst_h264_decoder_decode_nal (GstH264Decoder * self, GstH264NalUnit * nalu)
     case GST_H264_NAL_SLICE_EXT:
       ret = gst_h264_decoder_parse_slice (self, nalu);
       break;
+    case GST_H264_NAL_AU_DELIMITER:
+      break; // skip
     default:
       if (klass->unhandled_nalu)
         klass->unhandled_nalu (self, nalu->data + nalu->offset, nalu->size);

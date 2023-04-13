@@ -856,6 +856,8 @@ gst_h265_decoder_parse_nalu (GstH265Decoder * self, GstH265NalUnit * nalu)
     case GST_H265_NAL_EOS:
       priv->prev_nal_is_eos = TRUE;
       break;
+    case GST_H265_NAL_AUD:
+      break; // Skip
     default:
       if (klass->unhandled_nalu)
         klass->unhandled_nalu (self, nalu->data + nalu->offset, nalu->size);
