@@ -2271,6 +2271,7 @@ gst_h264_decoder_update_max_num_reorder_frames (GstH264Decoder * self,
   return TRUE;
 }
 
+#ifndef GstH264Level
 typedef enum
 {
   GST_H264_LEVEL_L1 = 10,
@@ -2293,11 +2294,11 @@ typedef enum
   GST_H264_LEVEL_L6 = 60,
   GST_H264_LEVEL_L6_1 = 61,
   GST_H264_LEVEL_L6_2 = 62,
-} GstH264DecoderLevel;
-
+} GstH264Level;
+#endif
 typedef struct
 {
-  GstH264DecoderLevel level;
+  GstH264Level level;
 
   guint32 max_mbps;
   guint32 max_fs;
@@ -2329,7 +2330,7 @@ static const LevelLimits level_limits_map[] = {
 };
 
 static gint
-h264_level_to_max_dpb_mbs (GstH264DecoderLevel level)
+h264_level_to_max_dpb_mbs (GstH264Level level)
 {
   gint i;
   for (i = 0; i < G_N_ELEMENTS (level_limits_map); i++) {
@@ -2447,7 +2448,7 @@ gst_h264_decoder_process_sps (GstH264Decoder * self, GstH264SPS * sps)
     level = 9;
   }
 
-  max_dpb_mbs = h264_level_to_max_dpb_mbs ((GstH264DecoderLevel) level);
+  max_dpb_mbs = h264_level_to_max_dpb_mbs ((GstH264Level) level);
   if (!max_dpb_mbs)
     return GST_FLOW_ERROR;
 
