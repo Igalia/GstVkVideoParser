@@ -1,8 +1,8 @@
 [wrap-git]
 directory=gstreamer-1.0
 #FIXME: use GStreamer upstream version
-url=https://gitlab.freedesktop.org/dabrain34/gstreamer.git
-revision=dab_gst_full_static
+url=https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+revision=main
 
 [provide]
 dependency_names = gstreamer-1.0, gstreamer-base-1.0, gstreamer-video-1.0, gstreamer-audio-1.0
