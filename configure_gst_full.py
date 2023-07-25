@@ -21,11 +21,9 @@ gst_options = [
 '-Dgstreamer-1.0:ugly=disabled',
 '-Dgstreamer-1.0:ges=disabled',
 '-Dgstreamer-1.0:devtools=disabled',
-'-Dgstreamer-1.0:default_library=static',
 '-Dgstreamer-1.0:rtsp_server=disabled',
 '-Dgstreamer-1.0:gst-full-target-type=static_library',
 '-Dgstreamer-1.0:gst-full-libraries=gstreamer-video-1.0, gstreamer-audio-1.0, gstreamer-app-1.0, gstreamer-codecparsers-1.0',
-'-Dgstreamer-1.0:tools=disabled',
 '-Dgst-plugins-base:playback=enabled',
 '-Dgst-plugins-base:app=enabled',
 '-Dgst-plugins-bad:videoparsers=enabled',
@@ -38,4 +36,3 @@ if is_windows:
 
 cmdline = ['meson', BUILDDIR] + gst_options
 call(cmdline)
-
