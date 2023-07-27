@@ -42,7 +42,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install --assume-yes --no-install-recommends valgrind python3-pip ninja-build
-          sudo pip3 install meson==1.0.1
+          sudo pip3 install meson==1.1.1
 
       - name: Install i386 dependencies
         if: matrix.platform == 'linux-x86-full'
@@ -120,7 +120,7 @@ jobs:
       - name: Install common dependencies
         run: |
           choco install --yes zip
-      
+
       - name: Install pkgconfiglite
         if: matrix.platform == 'windows-x64'
         uses: nick-fields/retry@v2
@@ -129,7 +129,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: choco install --yes --allow-empty-checksums pkgconfiglite
-      
+
       - name: Install gstreamer dependencies
         if: matrix.platform == 'windows-x64'
         run: |
@@ -142,7 +142,7 @@ jobs:
 
       - name: Install meson
         run: |
-          python -m pip install meson==1.0.1
+          python -m pip install meson==1.1.1
           python -m pip install ninja
 
       - name: Configure
